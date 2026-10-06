@@ -156,35 +156,33 @@ public class Utils {
     }
 
     public static boolean isVersionAtLeast(String targetVersion) {
-        String currentVersion = Bukkit.getBukkitVersion().split("-")[0];
-        String[] currentParts = currentVersion.split("\\.");
-        String[] targetParts = targetVersion.split("\\.");
-
-        int length = Math.max(currentParts.length, targetParts.length);
-        for (int i = 0; i < length; i++) {
-            int current = i < currentParts.length ? Integer.parseInt(currentParts[i].replaceAll("\\D", "")) : 0;
-            int target = i < targetParts.length ? Integer.parseInt(targetParts[i].replaceAll("\\D", "")) : 0;
-
-            if (current > target) return true;
-            if (current < target) return false;
-        }
-        return true;
+        return compareVersions(Bukkit.getBukkitVersion(), targetVersion) >= 0;
     }
 
     public static boolean isVersionBeforeOrEqual(String targetVersion) {
-        String currentVersion = Bukkit.getBukkitVersion().split("-")[0];
-        String[] currentParts = currentVersion.split("\\.");
-        String[] targetParts = targetVersion.split("\\.");
+        return compareVersions(Bukkit.getBukkitVersion(), targetVersion) <= 0;
+    }
 
-        int length = Math.max(currentParts.length, targetParts.length);
-        for (int i = 0; i < length; i++) {
-            int current = i < currentParts.length ? Integer.parseInt(currentParts[i].replaceAll("\\D", "")) : 0;
-            int target = i < targetParts.length ? Integer.parseInt(targetParts[i].replaceAll("\\D", "")) : 0;
-
-            if (current < target) return true;
-            if (current > target) return false;
+    /**
+     * Compares the game version of a Bukkit version string with a target like "26.2".
+     * Only the leading numeric parts count: Spigot "26.2-R0.1-SNAPSHOT" and Paper "26.2.build.92-stable" are both 26.2.
+     */
+    static int compareVersions(String bukkitVersion, String targetVersion) {
+        int[] current = leadingNumbers(bukkitVersion.split("-")[0]);
+        int[] target = leadingNumbers(targetVersion);
+        for (int i = 0; i < Math.max(current.length, target.length); i++) {
+            int difference = (i < current.length ? current[i] : 0) - (i < target.length ? target[i] : 0);
+            if (difference != 0)
+                return difference;
         }
-        return true;
+        return 0;
+    }
+
+    private static int[] leadingNumbers(String version) {
+        return java.util.Arrays.stream(version.split("\\."))
+                .takeWhile(part -> !part.isEmpty() && part.chars().allMatch(Character::isDigit))
+                .mapToInt(Integer::parseInt)
+                .toArray();
     }
 
     public static boolean isVersionExactly(String version) {
