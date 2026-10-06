@@ -5,6 +5,7 @@ mob:
 worlds:
   - world_askety_risorse
 special:
+  persistent: true
   visible-name: true
   health: 80.0
   speed: 0.27

@@ -232,22 +232,7 @@ public class Special extends CustomMobOption {
             livingCustomMob.setCanPickupItems(canPickupLoot);
             livingCustomMob.setAI(intelligent);
 
-            if (bossBar != null) {
-                BossBar bossBars = CustomMobs.getPlugin().getCustomMobsManager().getBossBar();
-                org.bukkit.boss.BossBar mobBossBar = bossBars.getBossBar(customMob.getUniqueId());
-                if (mobBossBar == null) {
-                    mobBossBar = Bukkit.createBossBar(
-                            customMob.getCustomName() != null ? customMob.getCustomName() : customMob.getName(),
-                            this.bossBarColor,
-                            this.bossBar);
-                    mobBossBar.setProgress(((LivingEntity) customMob).getHealth() / ((LivingEntity) customMob)
-                            .getAttribute(Registry.ATTRIBUTE.get(NamespacedKey.minecraft("max_health")))
-                            .getBaseValue());
-                    mobBossBar.setVisible(true);
-
-                    bossBars.createBossBar(customMob.getUniqueId(), mobBossBar);
-                }
-            }
+            applyBossBar(livingCustomMob);
         }
 
         customMob.setInvulnerable(invincible);
@@ -479,6 +464,27 @@ public class Special extends CustomMobOption {
 
     public static boolean isApplicable(EntityType entityType) {
         return true;
+    }
+
+    /**
+     * Creates the boss bar if this CustomMob has one and it does not exist yet. Boss bars live in memory only, so this is
+     * also called when a saved CustomMob comes back (chunk reload, restart).
+     */
+    public void applyBossBar(LivingEntity customMob) {
+        if (bossBar == null)
+            return;
+        BossBar bossBars = CustomMobs.getPlugin().getCustomMobsManager().getBossBar();
+        if (bossBars.getBossBar(customMob.getUniqueId()) != null)
+            return;
+        org.bukkit.boss.BossBar mobBossBar = Bukkit.createBossBar(
+                customMob.getCustomName() != null ? customMob.getCustomName() : customMob.getName(),
+                this.bossBarColor,
+                this.bossBar);
+        mobBossBar.setProgress(Math.min(1.0, customMob.getHealth() / customMob
+                .getAttribute(Registry.ATTRIBUTE.get(NamespacedKey.minecraft("max_health")))
+                .getBaseValue()));
+        mobBossBar.setVisible(true);
+        bossBars.createBossBar(customMob.getUniqueId(), mobBossBar);
     }
 
     public boolean getNaturalDrops() {

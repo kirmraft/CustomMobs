@@ -167,6 +167,9 @@ public class Events implements Listener {
             if (minerEffect != null && !Miner.activeMiners.containsKey(entity.getUniqueId()))
                 Miner.activeMiners.put(entity.getUniqueId(), (Miner) minerEffect);
 
+            if (entity instanceof LivingEntity living && customMob.getCustomMobOption("Special") instanceof Special special)
+                special.applyBossBar(living);
+
             customMob.enableCustomEffects(entity);
 
             if (entity instanceof org.bukkit.entity.Mob mob && entity.getPersistentDataContainer()

@@ -26,6 +26,8 @@ class AsketyMobsTest {
                 assertEquals(List.of("world_askety_risorse"), mob.get("worlds"), file.getName());
                 Map<String, Object> special = (Map<String, Object>) mob.get("special");
                 assertTrue(((Number) special.get("replace-natural")).doubleValue() > 0, file.getName());
+                // Entity#setPersistent(false) means "never saved": the mob would vanish on chunk unload or restart.
+                assertEquals(Boolean.TRUE, special.get("persistent"), file.getName());
                 assertNull(mob.get("spawner"), file.getName());
             }
         }
