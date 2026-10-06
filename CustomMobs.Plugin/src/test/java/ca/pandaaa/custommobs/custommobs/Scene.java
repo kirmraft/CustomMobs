@@ -16,6 +16,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Zombie;
+import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
 
 import com.destroystokyo.paper.entity.Pathfinder;
 
@@ -23,16 +24,24 @@ import com.destroystokyo.paper.entity.Pathfinder;
 final class Scene {
     final World world = proxy(World.class, "world", Map.of("getPlayers", a -> new ArrayList<>(this.players)));
     final List<Player> players = new ArrayList<>();
-    /** Players another plugin refuses as target: setTarget on them does nothing, like a cancelled EntityTargetEvent. */
+    /** Players another plugin refuses as target: their EntityTargetEvent is cancelled. */
     final Set<Player> vetoed = new HashSet<>();
     final Set<Player> unreachable = new HashSet<>();
     final List<Player> attacked = new ArrayList<>();
     final List<Entity> chased = new ArrayList<>();
     final List<LivingEntity> setTargetCalls = new ArrayList<>();
+    /** Every EntityTargetEvent fired at other plugins (the vetoed ones are cancelled, like Origini does). */
+    final List<EntityTargetLivingEntityEvent> targetEvents = new ArrayList<>();
     LivingEntity target;
     final Zombie mob;
 
     Scene() {
+        TargetRequests.dispatcher = e -> {
+            EntityTargetLivingEntityEvent event = (EntityTargetLivingEntityEvent) e;
+            targetEvents.add(event);
+            if (vetoed.contains(event.getTarget()))
+                event.setCancelled(true);
+        };
         Pathfinder pathfinder = proxy(Pathfinder.class, "pathfinder", Map.of(
                 "moveTo", a -> {
                     chased.add((Entity) a[0]);
@@ -47,8 +56,7 @@ final class Scene {
                 Map.entry("setTarget", a -> {
                     LivingEntity wanted = (LivingEntity) a[0];
                     setTargetCalls.add(wanted);
-                    if (wanted == null || !vetoed.contains(wanted))
-                        target = wanted;
+                    target = wanted; // Paper: Mob#setTarget fires no EntityTargetEvent, nobody can refuse it here
                     return null;
                 }),
                 Map.entry("attack", a -> {

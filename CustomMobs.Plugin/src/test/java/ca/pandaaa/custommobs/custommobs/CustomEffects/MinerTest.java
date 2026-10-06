@@ -18,16 +18,19 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Zombie;
 import org.bukkit.event.Event;
+import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import ca.pandaaa.custommobs.api.TargetVerdict;
 import ca.pandaaa.custommobs.configurations.CustomMobConfiguration;
 import ca.pandaaa.custommobs.custommobs.TargetPolicies;
+import ca.pandaaa.custommobs.custommobs.TargetRequests;
 
 /** Miner picks its own target: it must respect the policy and other plugins' vetoes like the aggressive goal. */
 class MinerTest {
     private final java.util.function.Consumer<Event> original = CustomMobCustomEffect.dispatcher;
+    private final java.util.function.Consumer<Event> originalTargets = TargetRequests.dispatcher;
     private final World world = fake(World.class, "world");
     private final List<Player> nearby = new ArrayList<>();
     private final Set<Player> vetoed = new HashSet<>();
@@ -40,8 +43,7 @@ class MinerTest {
                 case "getLocation" -> new Location(world, 0, 64, 0);
                 case "getTarget" -> target;
                 case "setTarget" -> {
-                    if (!vetoed.contains(a[0]))
-                        target = (LivingEntity) a[0];
+                    target = (LivingEntity) a[0]; // Paper: no EntityTargetEvent from Mob#setTarget
                     yield null;
                 }
                 case "getEyeLocation" -> {
@@ -55,11 +57,17 @@ class MinerTest {
 
     MinerTest() {
         CustomMobCustomEffect.dispatcher = e -> { };
+        TargetRequests.dispatcher = e -> {
+            EntityTargetLivingEntityEvent event = (EntityTargetLivingEntityEvent) e;
+            if (vetoed.contains(event.getTarget()))
+                event.setCancelled(true); // like Origini
+        };
     }
 
     @AfterEach
     void restore() {
         CustomMobCustomEffect.dispatcher = original;
+        TargetRequests.dispatcher = originalTargets;
         TargetPolicies.set(null);
     }
 

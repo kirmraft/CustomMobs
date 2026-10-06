@@ -49,9 +49,8 @@ public class Miner extends CustomMobCustomEffect {
 
         if(triggerCustomEffectCancelled(entity, target, this)) return null;
 
-        mob.setTarget(target);
         // Another plugin refused this target (EntityTargetEvent cancelled): do not dig towards it anyway.
-        if (mob.getTarget() != target)
+        if (mob.getTarget() != target && !ca.pandaaa.custommobs.custommobs.TargetRequests.request(mob, target))
             return null;
 
         if (!hasClearPath(mob, target)) {

@@ -31,6 +31,16 @@ class AggressiveGoalTest {
     }
 
     @Test
+    void targetIsAskedToOtherPluginsWithACustomEvent() {
+        Player p = scene.player("p", 1);
+        tick(goal(32, TargetPolicies.ALLOW_ALL), 1);
+        assertEquals(1, scene.targetEvents.size());
+        assertSame(scene.mob, scene.targetEvents.get(0).getEntity());
+        assertSame(p, scene.targetEvents.get(0).getTarget());
+        assertEquals(org.bukkit.event.entity.EntityTargetEvent.TargetReason.CUSTOM, scene.targetEvents.get(0).getReason());
+    }
+
+    @Test
     void deniedPlayerIsNeverChasedNorHit() {
         Player denied = scene.player("denied", 1);
         tick(goal(32, (mob, p) -> p == denied ? TargetVerdict.DENY : TargetVerdict.ALLOW), 5);
@@ -53,7 +63,8 @@ class AggressiveGoalTest {
         Player vetoedPlayer = scene.player("vetoed", 1);
         scene.vetoed.add(vetoedPlayer);
         tick(goal(32, TargetPolicies.ALLOW_ALL), 10);
-        assertTrue(scene.setTargetCalls.size() <= 1, "setTarget retried " + scene.setTargetCalls.size() + " times");
+        assertEquals(1, scene.targetEvents.size(), "target asked " + scene.targetEvents.size() + " times");
+        assertTrue(scene.setTargetCalls.isEmpty());
     }
 
     @Test

@@ -32,8 +32,8 @@ import ca.pandaaa.custommobs.api.MobTargetPolicy;
  *
  * <p>The target comes from {@link TargetSelection}: follow range from the mob's attribute, the registered
  * {@link MobTargetPolicy}, and vetoes. A veto is another plugin cancelling the {@code EntityTargetEvent} fired by
- * {@code setTarget}: the goal then neither hits nor chases that player, and leaves it alone for a while instead of
- * asking again every tick.
+ * {@link TargetRequests} (Paper's {@code setTarget} fires none): the goal then neither hits nor chases that player,
+ * and leaves it alone for a while instead of asking again every tick.
  */
 public final class AggressiveGoal implements Goal<Mob> {
     private static final GoalKey<Mob> KEY = GoalKey.of(Mob.class, new NamespacedKey("custommobs", "aggressive"));
@@ -90,13 +90,10 @@ public final class AggressiveGoal implements Goal<Mob> {
         Player target = findTarget();
         if (target == null)
             return;
-        if (mob.getTarget() != target) {
-            mob.setTarget(target);
-            if (mob.getTarget() != target) {
-                // Another plugin refused this target: respect it, do not hit or chase anyway.
-                vetoedUntil.put(target.getUniqueId(), ticks + VETO_RETRY_TICKS);
-                return;
-            }
+        if (mob.getTarget() != target && !TargetRequests.request(mob, target)) {
+            // Another plugin refused this target: respect it, do not hit or chase anyway.
+            vetoedUntil.put(target.getUniqueId(), ticks + VETO_RETRY_TICKS);
+            return;
         }
         mob.lookAt(target);
         if (cooldown > 0)
