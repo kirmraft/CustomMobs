@@ -331,6 +331,14 @@ public class CustomMobConfiguration {
         return true;
     }
 
+    private static final String WORLDS = "worlds";
+
+    public WorldPolicy getWorldPolicy() {
+        if (!mobConfiguration.contains(WORLDS, true))
+            return WorldPolicy.of(null);
+        return WorldPolicy.of(mobConfiguration.getStringList(WORLDS));
+    }
+
     private static final String DELETED = "delete-on";
 
     public boolean isDeleted() {

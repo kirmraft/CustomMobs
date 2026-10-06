@@ -1,0 +1,23 @@
+mob:
+  type: ZOMBIE
+  name: '&2Zombie Corrotto'
+  baby: false
+worlds:
+  - world_askety_risorse
+special:
+  visible-name: false
+  health: 30.0
+  speed: 0.26
+  damage:
+    ==: ca.pandaaa.custommobs.utils.DamageRange
+    minimum-damage: 4.0
+    maximum-damage: 6.0
+  replace-natural: 10.0
+custom-effects:
+  infection:
+    enabled: true
+    effect: poison
+    time: 4
+    amplifier: 0
+    message: false
+exclude-from-metrics: true

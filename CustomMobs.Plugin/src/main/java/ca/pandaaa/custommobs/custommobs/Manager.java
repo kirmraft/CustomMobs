@@ -14,6 +14,7 @@ import org.bukkit.inventory.ItemStack;
 import ca.pandaaa.custommobs.CustomMobs;
 import ca.pandaaa.custommobs.configurations.ConfigurationManager;
 import ca.pandaaa.custommobs.configurations.CustomMobConfiguration;
+import ca.pandaaa.custommobs.custommobs.Options.Special;
 
 public class Manager {
     private final ConfigurationManager configManager;
@@ -36,6 +37,21 @@ public class Manager {
         // Apply the effects on a second pass, as the mobs need to be created for some effects.
         for (CustomMob customMob : customMobs.values()) {
             customMob.getCustomMobConfiguration().setCustomMobCustomEffects(customMob);
+        }
+        logWorldPolicies();
+    }
+
+    private void logWorldPolicies() {
+        java.util.logging.Logger logger = CustomMobs.getPlugin().getLogger();
+        logger.info("Spawners " + (configManager.getSpawnersEnabled() ? "enabled" : "disabled") + ".");
+        for (Map.Entry<String, CustomMob> entry : new TreeMap<>(customMobs).entrySet()) {
+            CustomMob customMob = entry.getValue();
+            Special special = (Special) customMob.getCustomMobOption("Special");
+            double replace = special == null ? 0 : special.getReplaceNaturalPercentage();
+            logger.info("CustomMob " + entry.getKey() + " (" + customMob.getType() + "): worlds "
+                    + customMob.getWorldPolicy().describe() + ", replace-natural " + replace + "%");
+            if (replace > 0 && !customMob.getWorldPolicy().isRestricted())
+                logger.warning("CustomMob " + entry.getKey() + " replaces natural mobs in every world: add 'worlds:' to limit it.");
         }
     }
 

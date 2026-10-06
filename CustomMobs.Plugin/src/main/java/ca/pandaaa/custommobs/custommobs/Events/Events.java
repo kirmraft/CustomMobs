@@ -7,10 +7,13 @@ import org.bukkit.block.Block;
 import org.bukkit.block.CreatureSpawner;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.*;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.*;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryType;
@@ -168,7 +171,7 @@ public class Events implements Listener {
 
             if (entity instanceof org.bukkit.entity.Mob mob && entity.getPersistentDataContainer()
                     .has(NamespacedKeys.KEY_AGGRESSIVE, PersistentDataType.BOOLEAN)) {
-                new NMS().setCustomMobAggressivity(mob, 32);
+                AggressiveGoal.apply(mob, 32);
             }
         }
     }
@@ -206,7 +209,8 @@ public class Events implements Listener {
     }
 
     // Menu Item deletion //
-    @EventHandler
+    // HIGH: protection plugins (Towny, WorldGuard) have already decided on the interaction.
+    @EventHandler(priority = EventPriority.HIGH)
     public void onClickEvent(PlayerInteractEvent event) {
         Action action = event.getAction();
         if (!action.equals(Action.RIGHT_CLICK_BLOCK) && !action.equals(Action.RIGHT_CLICK_AIR))
@@ -236,27 +240,62 @@ public class Events implements Listener {
         if (!container.getKeys().contains(NamespacedKeys.KEY_ITEM_TYPE))
             return;
 
-        if (player.getGameMode() != GameMode.CREATIVE)
-            item.setAmount(item.getAmount() - 1);
-        CustomMob customMob = CustomMobs.getPlugin().getCustomMobsManager()
-                .getCustomMob(container.get(NamespacedKeys.KEY_FILE_NAME, PersistentDataType.STRING));
+        String itemType = container.get(NamespacedKeys.KEY_ITEM_TYPE, PersistentDataType.STRING);
+        boolean isItem = "Item".equalsIgnoreCase(itemType);
+        boolean isSpawnerItem = "Spawner-Item".equalsIgnoreCase(itemType);
+        if (!isItem && !isSpawnerItem)
+            return;
 
+        // A protection plugin denied using the item here: do nothing, and never fall back to the vanilla egg.
+        boolean denied = event.useItemInHand() == Event.Result.DENY;
+        event.setCancelled(true);
+        if (denied)
+            return;
+
+        Manager manager = CustomMobs.getPlugin().getCustomMobsManager();
+        CustomMob customMob = manager.getCustomMob(container.get(NamespacedKeys.KEY_FILE_NAME, PersistentDataType.STRING));
         if (customMob == null)
             return;
 
-        String itemType = container.get(NamespacedKeys.KEY_ITEM_TYPE, PersistentDataType.STRING);
-        Location blockLocation = event.getClickedBlock() != null ? event.getClickedBlock().getLocation()
-                : rayTraceResult.getHitBlock().getLocation();
-
-        if (itemType.equalsIgnoreCase("Item")) {
-            event.setCancelled(true);
-            customMob.spawnCustomMob(blockLocation.add(0.5, 1, 0.5));
-        } else if (itemType.equalsIgnoreCase("Spawner-Item")) {
-            event.setCancelled(true);
-            if (event.getClickedBlock() == null)
+        // The item is consumed only once the spawn or the placement really happened.
+        if (isItem) {
+            Location blockLocation = event.getClickedBlock() != null ? event.getClickedBlock().getLocation()
+                    : rayTraceResult.getHitBlock().getLocation();
+            if (!customMob.allowsWorld(blockLocation.getWorld())) {
+                player.sendMessage(manager.getConfigManager().getWorldNotAllowedMessage(customMob.getCustomMobFileName().replace(".yml", ""), blockLocation.getWorld().getName()));
                 return;
-            customMob.placeCustomMobSpawner(event.getClickedBlock().getRelative(event.getBlockFace()).getLocation());
+            }
+            if (customMob.spawnCustomMob(blockLocation.add(0.5, 1, 0.5), CustomMob.ORIGIN_ITEM) != null)
+                consumeOne(player, item);
+            return;
         }
+
+        if (!manager.getConfigManager().getSpawnersEnabled()) {
+            player.sendMessage(manager.getConfigManager().getSpawnersDisabledMessage());
+            return;
+        }
+        Block clicked = event.getClickedBlock();
+        if (clicked == null)
+            return;
+        Block placed = clicked.getRelative(event.getBlockFace());
+        if (!placed.isReplaceable())
+            return;
+        if (!customMob.allowsWorld(placed.getWorld())) {
+            player.sendMessage(manager.getConfigManager().getWorldNotAllowedMessage(customMob.getCustomMobFileName().replace(".yml", ""), placed.getWorld().getName()));
+            return;
+        }
+        // Same check as a normal block placement, so Towny/WorldGuard/claims apply to CustomMobs spawners too.
+        BlockPlaceEvent placeEvent = new BlockPlaceEvent(placed, placed.getState(), clicked, item, player, true, EquipmentSlot.HAND);
+        Bukkit.getPluginManager().callEvent(placeEvent);
+        if (placeEvent.isCancelled() || !placeEvent.canBuild())
+            return;
+        if (customMob.placeCustomMobSpawner(placed.getLocation()))
+            consumeOne(player, item);
+    }
+
+    private static void consumeOne(Player player, ItemStack item) {
+        if (player.getGameMode() != GameMode.CREATIVE)
+            item.setAmount(item.getAmount() - 1);
     }
 
     @EventHandler
@@ -283,14 +322,21 @@ public class Events implements Listener {
         }
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onSpawnerSpawn(SpawnerSpawnEvent event) {
+        if (event.getSpawner() == null)
+            return;
         PersistentDataContainer container = event.getSpawner().getPersistentDataContainer();
         Location location = event.getEntity().getLocation();
 
         if (container.has(NamespacedKeys.KEY_SPAWNER, PersistentDataType.STRING)) {
+            // A CustomMobs spawner never releases its vanilla placeholder entity.
+            event.setCancelled(true);
+            Manager manager = CustomMobs.getPlugin().getCustomMobsManager();
+            if (!manager.getConfigManager().getSpawnersEnabled())
+                return;
             String mobName = container.get(NamespacedKeys.KEY_SPAWNER, PersistentDataType.STRING);
-            CustomMob customMob = CustomMobs.getPlugin().getCustomMobsManager().getCustomMob(mobName);
+            CustomMob customMob = manager.getCustomMob(mobName);
             if (customMob == null || customMob.getSpawner() == null)
                 return;
             int range = customMob.getSpawner().getSpawnRange();
@@ -302,7 +348,6 @@ public class Events implements Listener {
                     .filter(entity -> entity.getType() == customMob.getType())
                     .count();
 
-            event.getEntity().remove();
             if (nearbyCustomMobs < customMob.getSpawner().getMaxNearbyCount()) {
                 int availableSpawnCount = customMob.getSpawner().getMaxNearbyCount() - nearbyCustomMobs;
                 int random = RANDOM.nextInt(Math.min(customMob.getSpawner().getSpawnCount(), availableSpawnCount)) + 1;
@@ -314,7 +359,7 @@ public class Events implements Listener {
                     spawnLocation.setY(getNearestY(location.getWorld(), location.getX() + offsetX, location.getY(),
                             location.getZ() + offsetZ));
 
-                    CustomMobs.getPlugin().getCustomMobsManager().getCustomMob(mobName).spawnCustomMob(spawnLocation);
+                    customMob.spawnCustomMob(spawnLocation, CustomMob.ORIGIN_SPAWNER);
                 }
             }
         }
@@ -335,14 +380,16 @@ public class Events implements Listener {
         return y;
     }
 
-    @EventHandler
+    // ignoreCancelled: a break denied by a protection plugin must not drop the spawner item (duplication).
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onSpawnerBreak(BlockBreakEvent event) {
         Manager manager = CustomMobs.getPlugin().getCustomMobsManager();
         Player player = event.getPlayer();
         ItemStack itemStack = player.getInventory().getItemInMainHand();
         Block block = event.getBlock();
 
-        if (!manager.getConfigManager().getSilkSpawner() || block.getType() != Material.SPAWNER
+        if (!manager.getConfigManager().getSpawnersEnabled() || !manager.getConfigManager().getSilkSpawner()
+                || block.getType() != Material.SPAWNER
                 || !itemStack.getType().toString().contains("PICKAXE")) {
             return;
         }
@@ -359,23 +406,26 @@ public class Events implements Listener {
         }
     }
 
-    @EventHandler
+    /**
+     * Natural replacement. HIGH + ignoreCancelled: never decorate a spawn another plugin already cancelled,
+     * and decorate before MONITOR listeners (LevelledMobs, AsketyMestieri) look at the entity.
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onEntitySpawn(CreatureSpawnEvent event) {
-        CreatureSpawnEvent.SpawnReason reason = event.getSpawnReason();
-        switch (reason) {
-            case TRIAL_SPAWNER:
-            case BUCKET:
-            case SHEARED:
-            case COMMAND:
-            case SPAWNER_EGG:
-            case CUSTOM:
-                return;
-        }
+        if (!SpawnRules.replaceable(event.getSpawnReason()))
+            return;
+        Entity entity = event.getEntity();
+        if (isCustomMob(entity) || SpawnRules.fromForeignSpawner(entity.getPersistentDataContainer().getKeys()))
+            return;
+        World world = event.getLocation().getWorld();
 
         Map<CustomMob, Double> customMobReplacePercentages = new HashMap<>();
         double totalPercentage = 0;
         for (CustomMob customMob : CustomMobs.getPlugin().getCustomMobsManager().getCustomMobs()) {
             if (customMob.getType() != event.getEntityType())
+                continue;
+            // Filter before the roll, so each world keeps the chances of its own pool.
+            if (!customMob.allowsWorld(world))
                 continue;
             if (customMob.getCustomMobOption("Special") != null
                     && ((Special) customMob.getCustomMobOption("Special")).getReplaceNaturalPercentage() != 0.0) {
@@ -404,8 +454,44 @@ public class Events implements Listener {
         }
 
         if (chosen != null) {
-            chosen.spawnCustomMob(event.getEntity());
+            chosen.spawnCustomMob(entity, CustomMob.ORIGIN_NATURAL);
         }
+    }
+
+    /**
+     * Entities that arrive already carrying a CustomMob key (summon with NBT, spawn egg with entity data,
+     * schematic paste) are refused in the worlds their CustomMob does not allow.
+     */
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onMarkedSpawn(CreatureSpawnEvent event) {
+        CustomMob customMob = definitionOf(event.getEntity());
+        if (customMob != null && !customMob.allowsWorld(event.getLocation().getWorld()))
+            event.setCancelled(true);
+    }
+
+    // A CustomMob keeps its PDC when it changes world (portal or teleport) and no spawn event fires there.
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onTeleport(EntityTeleportEvent event) {
+        refuseWorldChange(event);
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onPortal(EntityPortalEvent event) {
+        refuseWorldChange(event);
+    }
+
+    private void refuseWorldChange(EntityTeleportEvent event) {
+        Location to = event.getTo();
+        if (to == null || to.getWorld() == null || to.getWorld().equals(event.getFrom().getWorld()))
+            return;
+        CustomMob customMob = definitionOf(event.getEntity());
+        if (customMob != null && !customMob.allowsWorld(to.getWorld()))
+            event.setCancelled(true);
+    }
+
+    private CustomMob definitionOf(Entity entity) {
+        String name = entity.getPersistentDataContainer().get(NamespacedKeys.KEY_NAME, PersistentDataType.STRING);
+        return name == null ? null : CustomMobs.getPlugin().getCustomMobsManager().getCustomMob(name);
     }
 
     @EventHandler

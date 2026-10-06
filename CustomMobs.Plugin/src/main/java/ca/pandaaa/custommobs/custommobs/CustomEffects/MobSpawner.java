@@ -57,7 +57,7 @@ public class MobSpawner extends CustomMobCustomEffect {
                     entity.getWorld(),
                     entity.getLocation().getX() + offsetX,
                     entity.getLocation().getY(),
-                    entity.getLocation().getZ() + offsetZ));
+                    entity.getLocation().getZ() + offsetZ), CustomMob.ORIGIN_EFFECT);
         }
         return new ArrayList<>();
     }

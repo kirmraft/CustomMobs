@@ -8,6 +8,7 @@ import org.bukkit.entity.Player;
 
 import ca.pandaaa.custommobs.CustomMobs;
 import ca.pandaaa.custommobs.configurations.ConfigurationManager;
+import ca.pandaaa.custommobs.custommobs.CustomMob;
 import ca.pandaaa.custommobs.custommobs.Manager;
 import ca.pandaaa.custommobs.guis.MainGUI;
 import ca.pandaaa.custommobs.utils.Utils;
@@ -72,13 +73,8 @@ public class Commands implements CommandExecutor {
             return;
         }
 
-        if (args.length != 2 && args.length != 5) {
+        if (args.length != 2 && args.length != 5 && args.length != 6) {
             sendUnknownCommandMessage(sender);
-            return;
-        }
-
-        if (args.length == 2 && !(sender instanceof Player) && !(sender instanceof ConsoleCommandSender) && !(sender instanceof BlockCommandSender)) {
-            sendConsoleUnknownCommandMessage(sender, "Please use : /custommobs summon [name] [x] [y] [z]");
             return;
         }
 
@@ -89,13 +85,15 @@ public class Commands implements CommandExecutor {
 
         if (args.length == 2) {
             if (sender instanceof Player player)
-                customMobsManager.getCustomMob(args[1]).spawnCustomMob(player.getLocation());
+                summon(sender, args[1], player.getLocation());
             else if (sender instanceof BlockCommandSender blockCommandSender)
-                customMobsManager.getCustomMob(args[1]).spawnCustomMob(blockCommandSender.getBlock().getLocation());
+                summon(sender, args[1], blockCommandSender.getBlock().getLocation());
+            else
+                sendConsoleUnknownCommandMessage(sender, "Please use : /custommobs summon [name] [x] [y] [z] [world]");
             return;
-
         }
 
+        Location location;
         try {
             double x, y, z;
             World world;
@@ -118,15 +116,30 @@ public class Commands implements CommandExecutor {
                 world = Bukkit.getWorlds().isEmpty() ? null : Bukkit.getWorlds().get(0);
             }
 
+            if (args.length == 6)
+                world = Bukkit.getWorld(args[5]);
+
             if (world == null) {
                 sendUnknownCommandMessage(sender, "World could not be determined.");
                 return;
             }
 
-            customMobsManager.getCustomMob(args[1]).spawnCustomMob(new Location(world, x, y, z));
+            location = new Location(world, x, y, z);
         } catch (Exception exception) {
             sendIncorrectCoordinatesMessage(sender);
+            return;
         }
+        summon(sender, args[1], location);
+    }
+
+    // Staff follows the same world rules as every other spawn path.
+    private void summon(CommandSender sender, String name, Location location) {
+        CustomMob customMob = customMobsManager.getCustomMob(name);
+        if (!customMob.allowsWorld(location.getWorld())) {
+            sender.sendMessage(configManager.getWorldNotAllowedMessage(name, location.getWorld().getName()));
+            return;
+        }
+        customMob.spawnCustomMob(location, CustomMob.ORIGIN_COMMAND);
     }
 
     private void giveCommand(CommandSender sender, String[] args) {
@@ -155,6 +168,11 @@ public class Commands implements CommandExecutor {
         String type = args[3];
         if (!type.equalsIgnoreCase("item") && !type.equalsIgnoreCase("spawner")) {
             sendUnknownGiveMessage(sender);
+            return;
+        }
+
+        if (type.equalsIgnoreCase("spawner") && !configManager.getSpawnersEnabled()) {
+            sender.sendMessage(configManager.getSpawnersDisabledMessage());
             return;
         }
 

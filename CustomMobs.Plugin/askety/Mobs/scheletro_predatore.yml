@@ -1,0 +1,25 @@
+mob:
+  type: SKELETON
+  name: '&6Scheletro Predatore'
+worlds:
+  - world_askety_risorse
+special:
+  visible-name: true
+  health: 26.0
+  speed: 0.3
+  follow-range: 40.0
+  replace-natural: 8.0
+equipment:
+  main-hand:
+    ==: org.bukkit.inventory.ItemStack
+    DataVersion: 4671
+    id: minecraft:bow
+    count: 1
+    schema_version: 1
+  helmet:
+    ==: org.bukkit.inventory.ItemStack
+    DataVersion: 4671
+    id: minecraft:chainmail_helmet
+    count: 1
+    schema_version: 1
+exclude-from-metrics: true

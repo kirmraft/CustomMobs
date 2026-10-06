@@ -12,6 +12,7 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
@@ -29,6 +30,13 @@ import ca.pandaaa.custommobs.guis.EditCustomMobs.TypesGUI;
 import ca.pandaaa.custommobs.utils.Utils;
 
 public class CustomMob implements Listener {
+    /** Values of the CustomMobs.Origin key: how the CustomMob was created. */
+    public static final String ORIGIN_NATURAL = "natural";
+    public static final String ORIGIN_COMMAND = "command";
+    public static final String ORIGIN_ITEM = "item";
+    public static final String ORIGIN_SPAWNER = "spawner";
+    public static final String ORIGIN_EFFECT = "effect";
+
     private final Map<UUID, BukkitTask> activeCustomEffectRunnables = new HashMap<>();
     private final Map<UUID, LocalDateTime> nextCooldownOccurences = new HashMap<>();
     private final LocalDateTime creationDate;
@@ -47,6 +55,7 @@ public class CustomMob implements Listener {
     private final List<PotionEffect> potionEffects;
     private final List<SpawnDeathMessage> messages;
     private final CustomMobConfiguration mobConfiguration;
+    private final WorldPolicy worldPolicy;
 
     public CustomMob(LocalDateTime creationDate,
                      EntityType entityType,
@@ -65,54 +74,94 @@ public class CustomMob implements Listener {
         this.sounds = mobConfiguration.getSounds();
         this.messages = mobConfiguration.getMessages();
         this.customEffectsCooldownDuration = mobConfiguration.getCustomEffectsCooldownDuration();
+        this.worldPolicy = mobConfiguration.getWorldPolicy();
     }
 
-    public void spawnCustomMob(Entity customMob) {
-        // Naming
+    public WorldPolicy getWorldPolicy() {
+        return worldPolicy;
+    }
+
+    public boolean allowsWorld(World world) {
+        return world != null && worldPolicy.allows(world.getName());
+    }
+
+    /**
+     * Turns a vanilla entity that is not in the world yet (CreatureSpawnEvent) into this CustomMob.
+     * @return false when this CustomMob is not allowed in the entity's world (the entity stays vanilla).
+     */
+    public boolean spawnCustomMob(Entity customMob, String origin) {
+        if (!allowsWorld(customMob.getWorld()))
+            return false;
+        decorate(customMob, origin);
+        // The spawn can still be cancelled by a later listener: announce only if the entity really exists.
+        Bukkit.getScheduler().runTask(CustomMobs.getPlugin(), () -> {
+            if (customMob.isValid())
+                announce(customMob);
+            else
+                forget(customMob);
+        });
+        return true;
+    }
+
+    /**
+     * Spawns this CustomMob. Identity, stats and markers are applied before the entity is added to the world,
+     * so the CreatureSpawnEvent already sees a complete CustomMob.
+     * @return the entity, or null when the world is not allowed or the spawn was cancelled.
+     */
+    public Entity spawnCustomMob(Location location, String origin) {
+        World world = location.getWorld();
+        if (!allowsWorld(world))
+            return null;
+        Entity customMob = world.spawn(location, entityType.getEntityClass(), entity -> decorate(entity, origin));
+        if (!customMob.isValid()) {
+            forget(customMob);
+            return null;
+        }
+        announce(customMob);
+        return customMob;
+    }
+
+    private void decorate(Entity customMob, String origin) {
         if(name != null)
             customMob.setCustomName(Utils.applyFormat(name));
 
-        // Sounds
+        equipment.giveEquipments(customMob);
+
+        PersistentDataContainer container = customMob.getPersistentDataContainer();
+        container.set(NamespacedKeys.KEY_NAME, PersistentDataType.STRING, customMobFileName.replaceAll(".yml", ""));
+        container.set(NamespacedKeys.KEY_ORIGIN, PersistentDataType.STRING, origin);
+        // RoseStacker never stacks entities with this key (StackConditions): a CustomMob is always an individual.
+        container.set(NamespacedKeys.KEY_ROSESTACKER_UNSTACKABLE, PersistentDataType.INTEGER, 1);
+
+        for(CustomMobOption customMobType : customMobOptions.values()) {
+            customMobType.applyOptions(customMob);
+        }
+
+        for(PotionEffect potionEffect : potionEffects) {
+            potionEffect.apply((LivingEntity) customMob);
+        }
+    }
+
+    private void announce(Entity customMob) {
         for(Sound sound : sounds) {
             sound.playSound(customMob);
         }
 
-        // Message
         for(SpawnDeathMessage message : messages) {
             if(!message.isOnDeath())
                 message.sendMessage(customMob);
         }
 
-        // Equipment
-        equipment.giveEquipments(customMob);
-
-        // Drops
-        NamespacedKey key = new NamespacedKey(CustomMobs.getPlugin(), "CustomMobs.Name");
-        customMob.getPersistentDataContainer().set(key, PersistentDataType.STRING, customMobFileName.replaceAll(".yml", ""));
-
-        // Options
-        for(CustomMobOption customMobType : customMobOptions.values()) {
-            customMobType.applyOptions(customMob);
-        }
-
-        // Potions
-        for(PotionEffect potionEffect : potionEffects) {
-            potionEffect.apply((LivingEntity) customMob);
-        }
-
-        CustomMobSpawnEvent customEvent = new CustomMobSpawnEvent(customMob);
-        Bukkit.getServer().getPluginManager().callEvent(customEvent);
+        Bukkit.getServer().getPluginManager().callEvent(new CustomMobSpawnEvent(customMob));
     }
 
-    /**
-     * Constructor of the CustomMobs.
-     */
-    public void spawnCustomMob(Location location) {
-        Entity customMob = Objects.requireNonNull(location.getWorld()).spawnEntity(location, entityType);
-        spawnCustomMob(customMob);
+    private void forget(Entity customMob) {
+        CustomMobs.getPlugin().getCustomMobsManager().getBossBar().deleteBossBar(customMob.getUniqueId());
     }
 
-    public void placeCustomMobSpawner(Location location) {
+    public boolean placeCustomMobSpawner(Location location) {
+        if (!allowsWorld(location.getWorld()))
+            return false;
         location.getBlock().setType(Material.SPAWNER);
         CreatureSpawner spawnerBlock = (CreatureSpawner) location.getBlock().getState();
 
@@ -128,6 +177,7 @@ public class CustomMob implements Listener {
         this.spawner.setCharacteristics(spawnerBlock);
 
         spawnerBlock.update();
+        return true;
     }
 
     public void addCustomMobType(CustomMobOption customMobType) {

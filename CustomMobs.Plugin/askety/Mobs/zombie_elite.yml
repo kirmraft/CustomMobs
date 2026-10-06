@@ -1,0 +1,49 @@
+mob:
+  type: ZOMBIE
+  name: '&c&lZombie Elite'
+  baby: false
+worlds:
+  - world_askety_risorse
+special:
+  visible-name: true
+  health: 80.0
+  speed: 0.27
+  knockback-resistance: 0.6
+  damage:
+    ==: ca.pandaaa.custommobs.utils.DamageRange
+    minimum-damage: 7.0
+    maximum-damage: 10.0
+  replace-natural: 1.5
+  boss-bar: SOLID
+  boss-bar-color: RED
+equipment:
+  main-hand:
+    ==: org.bukkit.inventory.ItemStack
+    DataVersion: 4671
+    id: minecraft:iron_sword
+    count: 1
+    schema_version: 1
+  helmet:
+    ==: org.bukkit.inventory.ItemStack
+    DataVersion: 4671
+    id: minecraft:iron_helmet
+    count: 1
+    schema_version: 1
+  chestplate:
+    ==: org.bukkit.inventory.ItemStack
+    DataVersion: 4671
+    id: minecraft:iron_chestplate
+    count: 1
+    schema_version: 1
+custom-effects:
+  cooldown: 10
+  infection:
+    enabled: true
+    effect: slowness
+    time: 3
+    amplifier: 1
+    message: false
+  gravitypull:
+    enabled: true
+    message: false
+exclude-from-metrics: true

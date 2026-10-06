@@ -17,7 +17,6 @@ import org.bukkit.entity.Pose;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.MainHand;
-import org.bukkit.profile.PlayerProfile;
 import org.bukkit.profile.PlayerTextures;
 
 import ca.pandaaa.custommobs.CustomMobs;
@@ -88,7 +87,7 @@ public class Mannequin extends CustomMobOption {
             return;
 
         try {
-            PlayerProfile profile = Bukkit.createPlayerProfile(UUID.randomUUID(), "Mannequin");
+            com.destroystokyo.paper.profile.PlayerProfile profile = Bukkit.createProfile(UUID.randomUUID(), "Mannequin");
             PlayerTextures textures = profile.getTextures();
 
             if (!texture.isEmpty())
@@ -100,7 +99,7 @@ public class Mannequin extends CustomMobOption {
                 textures.setCape(new URL(cape));
 
             profile.setTextures(textures);
-            mannequin.setPlayerProfile(profile);
+            mannequin.setProfile(io.papermc.paper.datacomponent.item.ResolvableProfile.resolvableProfile(profile));
         } catch (MalformedURLException e) {
             CustomMobs.getPlugin().getServer().getConsoleSender()
                     .sendMessage(ChatColor.translateAlternateColorCodes('&', "&c[!] An error occured while applying the mannequin's texture."));
@@ -111,7 +110,7 @@ public class Mannequin extends CustomMobOption {
             mannequin.setPose(pose);
         mannequin.setImmovable(!movable);
         if(description != null && !description.isEmpty())
-            mannequin.setDescription(Utils.applyFormat(description));
+            mannequin.setDescription(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection().deserialize(Utils.applyFormat(description)));
     }
 
     @Override

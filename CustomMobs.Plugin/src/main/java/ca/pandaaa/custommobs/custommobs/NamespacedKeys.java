@@ -19,4 +19,8 @@ public class NamespacedKeys {
     public static final NamespacedKey KEY_RIDEABLE = new NamespacedKey(CustomMobs.getPlugin(), "CustomMobs.Rideable");
     public static final NamespacedKey KEY_AGGRESSIVE = new NamespacedKey(CustomMobs.getPlugin(),
             "CustomMobs.Aggressive");
+    /** How the CustomMob was created: natural, command, item, spawner, effect. */
+    public static final NamespacedKey KEY_ORIGIN = new NamespacedKey(CustomMobs.getPlugin(), "CustomMobs.Origin");
+    /** RoseStacker's own marker (PersistentDataUtils.isUnstackable, INTEGER). */
+    public static final NamespacedKey KEY_ROSESTACKER_UNSTACKABLE = new NamespacedKey("rosestacker", "unstackable");
 }

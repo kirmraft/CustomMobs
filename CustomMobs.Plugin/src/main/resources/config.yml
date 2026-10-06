@@ -9,6 +9,17 @@
 # Describe if CustomMob spawners are dropped when mining with a silk touch pickaxe
 silk-spawner: true
 
+# Set to false to turn off the CustomMobs spawner system entirely (no placing, no spawning, no silk touch drop).
+# Useful when the server already uses another spawner plugin.
+spawners-enabled: true
+
+# The message displayed when a CustomMobs spawner is used while spawners-enabled is false.
+spawners-disabled: "&c&l[!] &cCustomMobs spawners are disabled on this server."
+
+# The message displayed when a CustomMob cannot exist in a world (see 'worlds:' in the CustomMob file).
+# %custommob% -> The name of the CustomMob. %world% -> The world.
+world-not-allowed: "&c&l[!] &c%custommob% cannot exist in world %world%."
+
 # The message displayed when the command silk-spawner is sent.
 # %complement% -> Will change to the status of silk-spawner.
 silk-spawner-command: "&6&lCus&e&ltom&8&lMo&7&lbs &7&l>> &eSilk touch on spawners toggled : %complement%"

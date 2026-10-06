@@ -19,7 +19,7 @@ import ca.pandaaa.custommobs.CustomMobs;
 import ca.pandaaa.custommobs.configurations.CustomMobConfiguration;
 import ca.pandaaa.custommobs.custommobs.BossBar;
 import ca.pandaaa.custommobs.custommobs.CustomMob;
-import ca.pandaaa.custommobs.custommobs.NMS;
+import ca.pandaaa.custommobs.custommobs.AggressiveGoal;
 import ca.pandaaa.custommobs.custommobs.NamespacedKeys;
 import ca.pandaaa.custommobs.guis.BasicTypes.DoubleGUI;
 import ca.pandaaa.custommobs.guis.BasicTypes.DoubleRangeGUI;
@@ -199,8 +199,9 @@ public class Special extends CustomMobOption {
     }
 
     public void applyOptions(Entity customMob) {
+        // Hide the name, never delete it: the name is part of the mob identity (stack rules, boss bar, other plugins).
         if (isNameVisible != null && !isNameVisible)
-            customMob.setCustomName(null);
+            customMob.setCustomNameVisible(false);
         if (isNameVisible != null && isNameVisible)
             customMob.setCustomNameVisible(true);
 
@@ -256,7 +257,8 @@ public class Special extends CustomMobOption {
 
         if (aggressive) {
             customMob.getPersistentDataContainer().set(NamespacedKeys.KEY_AGGRESSIVE, PersistentDataType.BOOLEAN, true);
-            new NMS().setCustomMobAggressivity((Mob) customMob, followRange);
+            if (customMob instanceof Mob mob)
+                AggressiveGoal.apply(mob, followRange);
         } else {
             customMob.getPersistentDataContainer().remove(NamespacedKeys.KEY_AGGRESSIVE);
         }

@@ -19,7 +19,7 @@ public class CopperGolem extends CustomMobOption {
      * Specifies the state of oxidation of the copper golem on apparition.
      */
     private static final String OXIDATION = "mob.oxidation";
-    private org.bukkit.entity.CopperGolem.CopperWeatherState oxidation;
+    private io.papermc.paper.world.WeatheringCopperState oxidation;
 
     /**
      * Determines if the copper golem CustomMob can oxidize normally or if it is waxed.
@@ -29,7 +29,7 @@ public class CopperGolem extends CustomMobOption {
 
     public CopperGolem(CustomMobConfiguration mobConfiguration) {
         super(mobConfiguration);
-        this.oxidation = getOption(OXIDATION, org.bukkit.entity.CopperGolem.CopperWeatherState.class);
+        this.oxidation = getOption(OXIDATION, io.papermc.paper.world.WeatheringCopperState.class);
         this.oxidize = getOption(OXIDATION, Boolean.class, true);
     }
 
@@ -38,10 +38,10 @@ public class CopperGolem extends CustomMobOption {
             return;
 
         if(oxidation != null)
-            copperGolem.setWeatherState(oxidation);
+            copperGolem.setWeatheringState(oxidation);
 
         if(!oxidize)
-            copperGolem.setNextWeatheringTick(-1);
+            copperGolem.setOxidizing(org.bukkit.entity.CopperGolem.Oxidizing.waxed());
     }
 
     @Override
@@ -65,7 +65,7 @@ public class CopperGolem extends CustomMobOption {
                 if (clickType.isRightClick()) {
                     this.oxidation = null;
                 } else {
-                    List<org.bukkit.entity.CopperGolem.CopperWeatherState> oxidationLevels = Arrays.asList(org.bukkit.entity.CopperGolem.CopperWeatherState.values());
+                    List<io.papermc.paper.world.WeatheringCopperState> oxidationLevels = Arrays.asList(io.papermc.paper.world.WeatheringCopperState.values());
 
                     if (oxidationLevels.indexOf(oxidation) == oxidationLevels.size() - 1)
                         this.oxidation = oxidationLevels.get(0);

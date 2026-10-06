@@ -23,6 +23,23 @@ public class ConfigurationManager {
         CustomMobs.getPlugin().saveConfig();
     }
 
+    /** false = CustomMobs spawners never place, spawn nor drop (servers that use another spawner plugin). */
+    public boolean getSpawnersEnabled() {
+        return configuration.getBoolean("spawners-enabled", true);
+    }
+
+    public String getSpawnersDisabledMessage() {
+        return Utils.applyFormat(configuration.getString("spawners-disabled",
+                "&c&l[!] &cCustomMobs spawners are disabled on this server."));
+    }
+
+    public String getWorldNotAllowedMessage(String customMob, String world) {
+        return Utils.applyFormat(configuration.getString("world-not-allowed",
+                        "&c&l[!] &c%custommob% cannot exist in world %world%.")
+                .replace("%custommob%", customMob)
+                .replace("%world%", world));
+    }
+
     public String getUnknownCommandMessage(String complement) {
         return Utils.applyFormat(configuration.getString("unknown-command").replaceAll("%complement%", complement));
     }
