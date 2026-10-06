@@ -33,6 +33,8 @@ final class Scene {
     /** Every EntityTargetEvent fired at other plugins (the vetoed ones are cancelled, like Origini does). */
     final List<EntityTargetLivingEntityEvent> targetEvents = new ArrayList<>();
     LivingEntity target;
+    /** The mob's age; tests advance it like the server does every tick, goal active or not. */
+    int ticksLived;
     final Zombie mob;
 
     Scene() {
@@ -53,6 +55,7 @@ final class Scene {
                 Map.entry("getWorld", a -> world),
                 Map.entry("getWidth", a -> 0.6),
                 Map.entry("getTarget", a -> target),
+                Map.entry("getTicksLived", a -> ticksLived),
                 Map.entry("setTarget", a -> {
                     LivingEntity wanted = (LivingEntity) a[0];
                     setTargetCalls.add(wanted);

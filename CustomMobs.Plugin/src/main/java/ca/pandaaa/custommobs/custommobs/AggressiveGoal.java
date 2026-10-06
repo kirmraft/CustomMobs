@@ -40,7 +40,7 @@ public final class AggressiveGoal implements Goal<Mob> {
     private static final int ATTACK_COOLDOWN_TICKS = 20;
     /** Used when the mob has no follow_range attribute. */
     static final double DEFAULT_FOLLOW_RANGE = 32;
-    /** How long a vetoed player is left alone before the goal asks again. */
+    /** How long a vetoed player is left alone before the goal asks again (mob ticks lived: runs while the goal is inactive too). */
     static final int VETO_RETRY_TICKS = 20;
     /** With a policy registered, how often a still-valid target is weighed against the others. */
     static final int RECONSIDER_EVERY_TICKS = 20;
@@ -92,7 +92,7 @@ public final class AggressiveGoal implements Goal<Mob> {
             return;
         if (mob.getTarget() != target && !TargetRequests.request(mob, target)) {
             // Another plugin refused this target: respect it, do not hit or chase anyway.
-            vetoedUntil.put(target.getUniqueId(), ticks + VETO_RETRY_TICKS);
+            vetoedUntil.put(target.getUniqueId(), mob.getTicksLived() + VETO_RETRY_TICKS);
             return;
         }
         mob.lookAt(target);
@@ -142,7 +142,7 @@ public final class AggressiveGoal implements Goal<Mob> {
         Integer until = vetoedUntil.get(player.getUniqueId());
         if (until == null)
             return false;
-        if (ticks < until)
+        if (mob.getTicksLived() < until)
             return true;
         vetoedUntil.remove(player.getUniqueId());
         return false;

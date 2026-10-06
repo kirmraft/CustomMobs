@@ -18,8 +18,29 @@ class AggressiveGoalTest {
     }
 
     private void tick(AggressiveGoal goal, int times) {
-        for (int i = 0; i < times; i++)
+        for (int i = 0; i < times; i++) {
+            scene.ticksLived++;
             goal.tick();
+        }
+    }
+
+    /** One server tick: the mob ages, Paper asks shouldActivate and runs the goal only if it says yes. */
+    private boolean serverTick(AggressiveGoal goal) {
+        scene.ticksLived++;
+        if (!goal.shouldActivate())
+            return false;
+        goal.tick();
+        return true;
+    }
+
+    /** Vetoes {@code p} once (goal.tick at the current age), then lets Origini accept it again. */
+    private AggressiveGoal vetoOnce(Player p) {
+        scene.vetoed.add(p);
+        AggressiveGoal goal = goal(32, TargetPolicies.ALLOW_ALL);
+        goal.tick();
+        assertEquals(1, scene.targetEvents.size());
+        assertTrue(scene.targetEvents.get(0).isCancelled());
+        return goal;
     }
 
     @Test
@@ -65,6 +86,80 @@ class AggressiveGoalTest {
         tick(goal(32, TargetPolicies.ALLOW_ALL), 10);
         assertEquals(1, scene.targetEvents.size(), "target asked " + scene.targetEvents.size() + " times");
         assertTrue(scene.setTargetCalls.isEmpty());
+    }
+
+    @Test
+    void vetoIsStillValidBeforeItExpires() {
+        Player p = scene.player("p", 1);
+        AggressiveGoal goal = vetoOnce(p);
+        scene.vetoed.clear(); // Origini would now accept, but the veto has not expired yet
+        for (int i = 1; i < AggressiveGoal.VETO_RETRY_TICKS; i++)
+            assertFalse(serverTick(goal), "asked again after " + i + " ticks");
+        assertEquals(1, scene.targetEvents.size());
+        assertTrue(scene.attacked.isEmpty());
+    }
+
+    @Test
+    void vetoExpiresWhileTheGoalIsInactive() {
+        Player p = scene.player("p", 1);
+        AggressiveGoal goal = vetoOnce(p); // the goal stops: Paper then only calls shouldActivate every tick
+        scene.vetoed.clear(); // e.g. origin changed, Origini no longer refuses
+        boolean asksAgain = false;
+        for (int i = 0; i < AggressiveGoal.VETO_RETRY_TICKS && !asksAgain; i++)
+            asksAgain = serverTick(goal);
+        assertTrue(asksAgain, "a vetoed player must be asked again after " + AggressiveGoal.VETO_RETRY_TICKS + " ticks");
+    }
+
+    @Test
+    void afterExpiryThePlayerIsAskedAgainAndTaken() {
+        Player p = scene.player("p", 1);
+        AggressiveGoal goal = vetoOnce(p);
+        scene.vetoed.clear();
+        for (int i = 0; i < AggressiveGoal.VETO_RETRY_TICKS; i++)
+            serverTick(goal);
+        assertEquals(2, scene.targetEvents.size());
+        assertFalse(scene.targetEvents.get(1).isCancelled());
+        assertSame(p, scene.target);
+        assertEquals(List.of(p), scene.attacked);
+    }
+
+    @Test
+    void aNewVetoAtExpiryLastsAnotherFullPeriod() {
+        Player p = scene.player("p", 1);
+        AggressiveGoal goal = vetoOnce(p); // still refused at expiry
+        for (int i = 0; i < AggressiveGoal.VETO_RETRY_TICKS; i++)
+            serverTick(goal);
+        assertEquals(2, scene.targetEvents.size(), "asked once more at expiry");
+        for (int i = 1; i < AggressiveGoal.VETO_RETRY_TICKS; i++)
+            serverTick(goal);
+        assertEquals(2, scene.targetEvents.size(), "the renewed veto must last " + AggressiveGoal.VETO_RETRY_TICKS + " ticks");
+        serverTick(goal);
+        assertEquals(3, scene.targetEvents.size());
+        assertTrue(scene.attacked.isEmpty());
+    }
+
+    @Test
+    void vetoesArePerPlayer() {
+        Player first = scene.player("first", 1);
+        AggressiveGoal goal = vetoOnce(first);
+        for (int i = 0; i < 5; i++)
+            serverTick(goal);
+        Player second = scene.player("second", 2);
+        serverTick(goal);
+        assertSame(second, scene.target, "the first player's veto must not block another player");
+        assertEquals(List.of(first, second), scene.targetEvents.stream().map(e -> e.getTarget()).toList());
+        assertFalse(scene.attacked.contains(first));
+    }
+
+    @Test
+    void aRemovedMobLeavesNoVetoBehind() {
+        Player p = scene.player("p", 1);
+        vetoOnce(p);
+        scene.vetoed.clear();
+        // Goals are not saved with the entity: a respawned or reloaded mob gets a new goal (AggressiveGoal.apply).
+        AggressiveGoal fresh = goal(32, TargetPolicies.ALLOW_ALL);
+        assertTrue(serverTick(fresh), "a new goal starts without old vetoes");
+        assertSame(p, scene.target);
     }
 
     @Test
