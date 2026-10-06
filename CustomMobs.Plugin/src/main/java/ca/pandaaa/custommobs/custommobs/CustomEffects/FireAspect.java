@@ -34,9 +34,14 @@ public class FireAspect extends CustomMobCustomEffect {
         fireDuration = getCustomEffectOption(FIRE_DURATION, Integer.class, 5);
     }
 
+    /** Legacy entry point without the mob: the victim stands in as source. Use {@link #triggerOnDamage}. */
     public List<Player> triggerCustomEffect(Entity entity) {
-        if(triggerCustomEffectCancelled(entity, (Player) entity, this)) return null;
-        entity.setFireTicks(fireDuration * 20);
+        return triggerOnDamage(entity, (Player) entity);
+    }
+
+    @Override
+    protected List<Player> applyOnDamage(Player victim) {
+        victim.setFireTicks(fireDuration * 20);
         return new ArrayList<>();
     }
 

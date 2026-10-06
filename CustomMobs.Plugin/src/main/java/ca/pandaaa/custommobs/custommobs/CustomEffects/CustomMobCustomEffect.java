@@ -206,9 +206,27 @@ public abstract class CustomMobCustomEffect {
         }
     }
 
+    /** Fires the effect events; replaced in tests (no server there). */
+    static java.util.function.Consumer<org.bukkit.event.Event> dispatcher =
+            event -> Bukkit.getServer().getPluginManager().callEvent(event);
+
+    /**
+     * ON_DAMAGE_ON_PLAYER effects: {@code source} is the CustomMob that hit, {@code victim} the player it hit.
+     */
+    public List<Player> triggerOnDamage(Entity source, Player victim) {
+        if (triggerCustomEffectCancelled(source, victim, this))
+            return null;
+        return applyOnDamage(victim);
+    }
+
+    /** What an ON_DAMAGE_ON_PLAYER effect does to the victim, once its event was not cancelled. */
+    protected List<Player> applyOnDamage(Player victim) {
+        return triggerCustomEffect(victim);
+    }
+
     protected boolean triggerCustomEffectCancelled(Entity entity, Player target, CustomMobCustomEffect effect) {
         CustomMobCustomEffectEvent event = new CustomMobCustomEffectEvent(entity, target, effect);
-        Bukkit.getServer().getPluginManager().callEvent(event);
+        dispatcher.accept(event);
         return event.isCancelled();
     }
 

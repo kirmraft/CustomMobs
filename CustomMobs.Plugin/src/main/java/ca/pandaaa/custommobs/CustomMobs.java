@@ -177,6 +177,9 @@ public class CustomMobs extends JavaPlugin {
             return;
 
         getServer().getPluginManager().registerEvents(new Events(), this);
+        // A MobTargetPolicy from another plugin (ServicesManager), cached and kept up to date.
+        getServer().getPluginManager().registerEvents(new ca.pandaaa.custommobs.custommobs.TargetPolicies(), this);
+        ca.pandaaa.custommobs.custommobs.TargetPolicies.refresh();
         command.setExecutor(new Commands(configManager, customMobsManager));
         command.setTabCompleter(new TabCompletion());
     }

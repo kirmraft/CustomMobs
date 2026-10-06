@@ -50,6 +50,9 @@ public class Miner extends CustomMobCustomEffect {
         if(triggerCustomEffectCancelled(entity, target, this)) return null;
 
         mob.setTarget(target);
+        // Another plugin refused this target (EntityTargetEvent cancelled): do not dig towards it anyway.
+        if (mob.getTarget() != target)
+            return null;
 
         if (!hasClearPath(mob, target)) {
             digTowardsTarget(mob, target);
@@ -103,22 +106,18 @@ public class Miner extends CustomMobCustomEffect {
         return item;
     }
 
+    /** Same rules as the aggressive goal: registered policy (DENY and weights), within the radius. */
     private Player getNearestPlayer(Mob mob, int radius) {
-        Player nearest = null;
-        double closest = Double.MAX_VALUE;
-
+        java.util.List<Player> candidates = new java.util.ArrayList<>();
         for (Entity nearbyEntity : mob.getNearbyEntities(radius, radius, radius)) {
-            if (nearbyEntity instanceof Player player) {
-                if (player.getGameMode() != GameMode.SURVIVAL && player.getGameMode() != GameMode.ADVENTURE)
-                    continue;
-                double dist = player.getLocation().distanceSquared(mob.getLocation());
-                if (dist < closest) {
-                    closest = dist;
-                    nearest = player;
-                }
-            }
+            if (nearbyEntity instanceof Player player
+                    && (player.getGameMode() == GameMode.SURVIVAL || player.getGameMode() == GameMode.ADVENTURE))
+                candidates.add(player);
         }
-        return nearest;
+        ca.pandaaa.custommobs.api.MobTargetPolicy policy = ca.pandaaa.custommobs.custommobs.TargetPolicies.current();
+        return ca.pandaaa.custommobs.custommobs.TargetSelection.choose(null, candidates,
+                player -> player.getLocation().distanceSquared(mob.getLocation()), Double.MAX_VALUE,
+                player -> policy.evaluate(mob, player), player -> false, player -> true, false);
     }
 
     private boolean hasClearPath(Mob mob, Player target) {

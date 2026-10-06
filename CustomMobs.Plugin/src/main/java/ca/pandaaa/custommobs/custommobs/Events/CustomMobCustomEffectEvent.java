@@ -8,6 +8,15 @@ import org.bukkit.event.HandlerList;
 
 import ca.pandaaa.custommobs.custommobs.CustomEffects.CustomMobCustomEffect;
 
+/**
+ * Fired before a CustomMob effect acts. Cancel it to stop the effect.
+ *
+ * <p>Contract: {@link #getEntity()} is always the CustomMob that owns the effect (for on-hit effects, the mob that hit
+ * or shot). {@link #getTarget()} is the player affected, or null for the activation of an area effect (Explosion,
+ * GravityPull, LightningStrike, MobSpawner, Trail, Trampoline, Vanish), which then fire one more event per player
+ * they reach. Fireball fires twice per player (aim, then launch); Trampoline gives up the whole activation if one
+ * player's event is cancelled.
+ */
 public class CustomMobCustomEffectEvent extends Event implements Cancellable {
     private static final HandlerList handlers = new HandlerList();
     private final Entity entity;

@@ -64,13 +64,15 @@ public class Events implements Listener {
             return;
 
         if (isCustomMob(entity)) {
+            Entity source = entity;
             CustomMob customMob = CustomMobs.getPlugin().getCustomMobsManager().getCustomMob(
                     entity.getPersistentDataContainer().get(NamespacedKeys.KEY_NAME, PersistentDataType.STRING));
             customMob.getCustomMobCustomEffects().stream()
                     .filter(effect -> CustomEffectType.ON_DAMAGE_ON_PLAYER.equals(effect.getCustomEffectType()))
                     .filter(CustomMobCustomEffect::isEnabled)
                     .forEach(effect -> {
-                        if (effect.triggerCustomEffect(event.getEntity()) != null)
+                        // Source = the CustomMob that hit (or shot), target = the player hit.
+                        if (effect.triggerOnDamage(source, (Player) event.getEntity()) != null)
                             effect.trySendCustomEffectMessage((Player) event.getEntity());
                     });
         }
@@ -173,7 +175,7 @@ public class Events implements Listener {
 
         if (entity instanceof org.bukkit.entity.Mob mob && entity.getPersistentDataContainer()
                 .has(NamespacedKeys.KEY_AGGRESSIVE, PersistentDataType.BOOLEAN)) {
-            AggressiveGoal.apply(mob, 32);
+            AggressiveGoal.apply(mob);
         }
     }
 

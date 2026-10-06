@@ -247,7 +247,7 @@ public class Special extends CustomMobOption {
         if (aggressive) {
             customMob.getPersistentDataContainer().set(NamespacedKeys.KEY_AGGRESSIVE, PersistentDataType.BOOLEAN, true);
             if (customMob instanceof Mob mob)
-                AggressiveGoal.apply(mob, followRange);
+                AggressiveGoal.apply(mob);
         } else {
             customMob.getPersistentDataContainer().remove(NamespacedKeys.KEY_AGGRESSIVE);
         }

@@ -442,7 +442,7 @@ public class CustomMob implements Listener {
                     int randomIndex = new Random().nextInt(cooldownCustomEffects.size());
                     List<Player> affectedPlayers = cooldownCustomEffects.get(randomIndex).triggerCustomEffect(entity);
                     if(affectedPlayers == null) {
-                        nextCooldownOccurences.put(entityId, LocalDateTime.now().plusSeconds(customEffectsCooldownDuration));
+                        nextCooldownOccurences.put(entityId, LocalDateTime.now().plusSeconds(AbilityCycle.secondsUntilNext(affectedPlayers, customEffectsCooldownDuration)));
                         return;
                     } else if (affectedPlayers.isEmpty()) {
                         double radius = cooldownCustomEffects.get(randomIndex).getMessageRadius();
@@ -455,7 +455,7 @@ public class CustomMob implements Listener {
                     } else {
                         affectedPlayers.forEach(player -> cooldownCustomEffects.get(randomIndex).trySendCustomEffectMessage(player));
                     }
-                    nextCooldownOccurences.put(entityId, LocalDateTime.now().plusSeconds(customEffectsCooldownDuration));
+                    nextCooldownOccurences.put(entityId, LocalDateTime.now().plusSeconds(AbilityCycle.secondsUntilNext(affectedPlayers, customEffectsCooldownDuration)));
                 }
             }
         }.runTaskTimer(CustomMobs.getPlugin(), 0L, 10L); // 0.5 sec

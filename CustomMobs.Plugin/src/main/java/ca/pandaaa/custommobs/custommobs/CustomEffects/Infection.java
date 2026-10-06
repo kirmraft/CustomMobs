@@ -57,10 +57,15 @@ public class Infection extends CustomMobCustomEffect {
         this.infectionEffect = getCustomEffectOption(INFECTION_EFFECT, PotionEffectType.class, PotionEffectType.BLINDNESS);
     }
 
+    /** Legacy entry point without the mob: the victim stands in as source. Use {@link #triggerOnDamage}. */
     public List<Player> triggerCustomEffect(Entity entity) {
-        if(triggerCustomEffectCancelled(entity, (Player) entity, this)) return null;
-        if(!((LivingEntity) entity).hasPotionEffect(infectionEffect)) {
-            ((LivingEntity) entity).addPotionEffect(new PotionEffect(infectionEffect, infectionTime * 20, infectionAmplifier));
+        return triggerOnDamage(entity, (Player) entity);
+    }
+
+    @Override
+    protected List<Player> applyOnDamage(Player victim) {
+        if(!((LivingEntity) victim).hasPotionEffect(infectionEffect)) {
+            ((LivingEntity) victim).addPotionEffect(new PotionEffect(infectionEffect, infectionTime * 20, infectionAmplifier));
             return new ArrayList<>();
         }
         return null;
