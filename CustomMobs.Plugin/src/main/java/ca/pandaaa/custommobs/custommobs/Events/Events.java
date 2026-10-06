@@ -79,21 +79,16 @@ public class Events implements Listener {
     /**
      * Damage of players on the CustomMob, which is used for MOST_DAMAGE.
      */
-    @EventHandler
+    // ignoreCancelled: a hit a protection plugin cancelled must not count toward MOST_DAMAGE.
+    @EventHandler(ignoreCancelled = true)
     public void onPlayerDamage(EntityDamageByEntityEvent event) {
         Entity entity = event.getDamager();
 
-        if (!(entity instanceof Player))
+        if (CombatActivation.mobHitByPlayer(entity, event.getEntity(), this::isCustomMob) == null)
             return;
 
-        if (!isCustomMob(entity))
-            return;
-
-        // Enable the custom effects of the CustomMob.
-        CustomMobs.getPlugin().getCustomMobsManager()
-                .getCustomMob(event.getEntity().getPersistentDataContainer().get(NamespacedKeys.KEY_NAME,
-                        PersistentDataType.STRING))
-                .enableCustomEffects(event.getEntity());
+        // Same wake-up as walking near it: a player who stands still and fights must get the boss bar and effects too.
+        wake(event.getEntity());
 
         double damage = 0;
         NamespacedKey damageKey = new NamespacedKey(CustomMobs.getPlugin(),
@@ -141,41 +136,44 @@ public class Events implements Listener {
 
         List<Entity> entities = event.getPlayer().getNearbyEntities(10, 5, 10);
         for (Entity entity : entities) {
-            if (!isCustomMob(entity))
-                continue;
+            if (isCustomMob(entity))
+                wake(entity);
+        }
+    }
 
-            CustomMob customMob = CustomMobs.getPlugin().getCustomMobsManager()
-                    .getCustomMob(entity.getPersistentDataContainer().get(NamespacedKeys.KEY_NAME,
-                            PersistentDataType.STRING));
+    /** Boss bar, custom effects and aggressive goal of a CustomMob a player is engaging. Idempotent. */
+    private void wake(Entity entity) {
+        CustomMob customMob = CustomMobs.getPlugin().getCustomMobsManager()
+                .getCustomMob(entity.getPersistentDataContainer().get(NamespacedKeys.KEY_NAME,
+                        PersistentDataType.STRING));
 
-            if (customMob == null) {
-                entity.getPersistentDataContainer().remove(NamespacedKeys.KEY_NAME);
-                continue;
-            }
+        if (customMob == null) {
+            entity.getPersistentDataContainer().remove(NamespacedKeys.KEY_NAME);
+            return;
+        }
 
-            CustomMobCustomEffect trailEffect = customMob.getCustomMobCustomEffects().stream().filter(
-                    x -> x.isEnabled()
-                            && x.getClass().getSimpleName().equalsIgnoreCase("Trail"))
-                    .findFirst().orElse(null);
-            if (trailEffect != null && !Trail.activeTrails.containsKey(entity.getUniqueId()))
-                Trail.activeTrails.put(entity.getUniqueId(), (Trail) trailEffect);
+        CustomMobCustomEffect trailEffect = customMob.getCustomMobCustomEffects().stream().filter(
+                x -> x.isEnabled()
+                        && x.getClass().getSimpleName().equalsIgnoreCase("Trail"))
+                .findFirst().orElse(null);
+        if (trailEffect != null && !Trail.activeTrails.containsKey(entity.getUniqueId()))
+            Trail.activeTrails.put(entity.getUniqueId(), (Trail) trailEffect);
 
-            CustomMobCustomEffect minerEffect = customMob.getCustomMobCustomEffects().stream().filter(
-                    x -> x.isEnabled()
-                            && x.getClass().getSimpleName().equalsIgnoreCase("Miner"))
-                    .findFirst().orElse(null);
-            if (minerEffect != null && !Miner.activeMiners.containsKey(entity.getUniqueId()))
-                Miner.activeMiners.put(entity.getUniqueId(), (Miner) minerEffect);
+        CustomMobCustomEffect minerEffect = customMob.getCustomMobCustomEffects().stream().filter(
+                x -> x.isEnabled()
+                        && x.getClass().getSimpleName().equalsIgnoreCase("Miner"))
+                .findFirst().orElse(null);
+        if (minerEffect != null && !Miner.activeMiners.containsKey(entity.getUniqueId()))
+            Miner.activeMiners.put(entity.getUniqueId(), (Miner) minerEffect);
 
-            if (entity instanceof LivingEntity living && customMob.getCustomMobOption("Special") instanceof Special special)
-                special.applyBossBar(living);
+        if (entity instanceof LivingEntity living && customMob.getCustomMobOption("Special") instanceof Special special)
+            special.applyBossBar(living);
 
-            customMob.enableCustomEffects(entity);
+        customMob.enableCustomEffects(entity);
 
-            if (entity instanceof org.bukkit.entity.Mob mob && entity.getPersistentDataContainer()
-                    .has(NamespacedKeys.KEY_AGGRESSIVE, PersistentDataType.BOOLEAN)) {
-                AggressiveGoal.apply(mob, 32);
-            }
+        if (entity instanceof org.bukkit.entity.Mob mob && entity.getPersistentDataContainer()
+                .has(NamespacedKeys.KEY_AGGRESSIVE, PersistentDataType.BOOLEAN)) {
+            AggressiveGoal.apply(mob, 32);
         }
     }
 
