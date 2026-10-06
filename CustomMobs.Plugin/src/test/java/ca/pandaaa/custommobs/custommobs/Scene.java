@@ -72,10 +72,13 @@ final class Scene {
                 Map.entry("isValid", a -> true)));
     }
 
+    private final Map<Player, double[]> positions = new java.util.HashMap<>();
+
     Player player(String name, double x) {
         UUID id = UUID.randomUUID();
+        double[] at = {x};
         Player p = proxy(Player.class, name, Map.of(
-                "getLocation", a -> new Location(world, x, 64, 0),
+                "getLocation", a -> new Location(world, at[0], 64, 0),
                 "getWorld", a -> world,
                 "isValid", a -> true,
                 "isDead", a -> false,
@@ -83,7 +86,12 @@ final class Scene {
                 "getUniqueId", a -> id,
                 "getName", a -> name));
         players.add(p);
+        positions.put(p, at);
         return p;
+    }
+
+    void move(Player p, double x) {
+        positions.get(p)[0] = x;
     }
 
     @SuppressWarnings("unchecked")

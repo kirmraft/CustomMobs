@@ -87,13 +87,51 @@ class TargetSelectionTest {
     }
 
     @Test
-    void reconsideringSwitchesOnlyToAHigherWeight() {
+    void reconsideringTakesTheBestScoreAndKeepsTheCurrentOnATie() {
         at("current", 10);
         at("closer", 5);
-        at("prio", 15);
-        assertEquals("current", choose("current", true, "current", "closer"));
-        verdicts.put("prio", TargetVerdict.prefer(2));
-        assertEquals("prio", choose("current", true, "current", "closer", "prio"));
+        assertEquals("closer", choose("current", true, "current", "closer"));
+        at("closer", 10);
+        assertEquals("current", choose("current", true, "closer", "current"));
+    }
+
+    @Test
+    void scoreIsDistanceOverWeight() {
+        at("a", 10); // score 10
+        at("b", 13); // score 13 / 1.4 = 9.29
+        verdicts.put("b", TargetVerdict.prefer(1.4));
+        assertEquals("b", choose("a", true, "a", "b"));
+        at("b", 15); // score 10.71
+        assertEquals("a", choose("b", true, "a", "b"));
+        at("b", 13);
+        assertEquals("b", choose("a", true, "a", "b"));
+    }
+
+    @Test
+    void denyBeatsAnyWeightEvenOnTheCurrentTarget() {
+        at("a", 10);
+        at("b", 13);
+        verdicts.put("b", TargetVerdict.DENY);
+        assertEquals("a", choose("b", true, "a", "b"));
+        assertEquals("a", choose("b", false, "a", "b"));
+    }
+
+    @Test
+    void deniedAAllowedB() {
+        at("a", 10);
+        at("b", 13);
+        verdicts.put("a", TargetVerdict.DENY);
+        assertEquals("b", choose(null, true, "a", "b"));
+    }
+
+    @Test
+    void everybodyDeniedMeansNoTarget() {
+        at("a", 10);
+        at("b", 13);
+        verdicts.put("a", TargetVerdict.DENY);
+        verdicts.put("b", TargetVerdict.DENY);
+        assertNull(choose("b", true, "a", "b"));
+        assertNull(choose("b", false, "a", "b"));
     }
 
     @Test

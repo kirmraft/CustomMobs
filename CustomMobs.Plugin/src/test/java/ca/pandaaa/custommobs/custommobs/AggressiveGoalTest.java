@@ -2,7 +2,9 @@ package ca.pandaaa.custommobs.custommobs;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.bukkit.entity.Player;
 import org.junit.jupiter.api.Test;
@@ -24,13 +26,34 @@ class AggressiveGoalTest {
         }
     }
 
-    /** One server tick: the mob ages, Paper asks shouldActivate and runs the goal only if it says yes. */
+    private boolean running;
+
+    /**
+     * One server tick as Paper's goal selector runs it: the mob ages; a running goal is asked shouldStayActive (stop
+     * if not), an idle one shouldActivate (start if so); then a running goal is ticked. Returns whether it ticked.
+     */
     private boolean serverTick(AggressiveGoal goal) {
         scene.ticksLived++;
-        if (!goal.shouldActivate())
-            return false;
-        goal.tick();
-        return true;
+        if (running && !goal.shouldStayActive()) {
+            goal.stop();
+            running = false;
+        }
+        if (!running && goal.shouldActivate()) {
+            goal.start();
+            running = true;
+        }
+        if (running)
+            goal.tick();
+        return running;
+    }
+
+    private void serverTicks(AggressiveGoal goal, int times) {
+        for (int i = 0; i < times; i++)
+            serverTick(goal);
+    }
+
+    private AggressiveGoal goal(Map<Player, TargetVerdict> verdicts) {
+        return goal(32, (mob, p) -> verdicts.getOrDefault(p, TargetVerdict.ALLOW));
     }
 
     /** Vetoes {@code p} once (goal.tick at the current age), then lets Origini accept it again. */
@@ -180,6 +203,101 @@ class AggressiveGoalTest {
         tick(goal(32, (mob, p) -> TargetVerdict.DENY), 3);
         assertTrue(scene.attacked.isEmpty());
         assertTrue(scene.chased.isEmpty());
+    }
+
+    @Test
+    void aCurrentTargetDeniedLaterIsReplacedWhilePaperAsksShouldStayActiveFirst() {
+        Player first = scene.player("first", 1);
+        Player other = scene.player("other", 2);
+        java.util.Set<Player> denied = new java.util.HashSet<>();
+        AggressiveGoal goal = goal(32, (mob, p) -> denied.contains(p) ? TargetVerdict.DENY : TargetVerdict.ALLOW);
+        assertTrue(serverTick(goal));
+        assertSame(first, scene.target);
+        denied.add(first);
+        // A running goal: Paper asks shouldStayActive, then ticks it, every time.
+        for (int i = 0; i < AggressiveGoal.RECONSIDER_EVERY_TICKS * 2 && goal.shouldStayActive(); i++) {
+            scene.ticksLived++;
+            goal.tick();
+        }
+        assertSame(other, scene.target, "DENY on the current target must hand it to the next allowed player");
+        assertFalse(scene.attacked.subList(1, scene.attacked.size()).contains(first));
+    }
+
+    @Test
+    void priorityThresholdIsCheckedAgainAtEveryReconsider() {
+        Player a = scene.player("A", 10);
+        Player b = scene.player("B", 13);
+        Map<Player, TargetVerdict> verdicts = new HashMap<>(Map.of(b, TargetVerdict.prefer(1.4)));
+        AggressiveGoal goal = goal(verdicts);
+        serverTick(goal);
+        assertSame(b, scene.target, "B scores 13 / 1.4 = 9.29 < A's 10");
+
+        scene.move(b, 15); // 15 / 1.4 = 10.71 > 10
+        serverTicks(goal, AggressiveGoal.RECONSIDER_EVERY_TICKS);
+        assertSame(a, scene.target, "A must win at the next reconsider");
+
+        scene.move(b, 13);
+        serverTicks(goal, AggressiveGoal.RECONSIDER_EVERY_TICKS);
+        assertSame(b, scene.target, "B wins again at the next reconsider");
+    }
+
+    @Test
+    void aPreferredTargetTurnedDenyIsDroppedAndNeverHitAgain() {
+        Player a = scene.player("A", 1);
+        Player b = scene.player("B", 1.3);
+        Map<Player, TargetVerdict> verdicts = new HashMap<>(Map.of(b, TargetVerdict.prefer(100)));
+        AggressiveGoal goal = goal(verdicts);
+        serverTick(goal);
+        assertSame(b, scene.target);
+
+        verdicts.put(b, TargetVerdict.DENY);
+        int hitsBefore = scene.attacked.size();
+        int chasesBefore = scene.chased.size();
+        serverTick(goal);
+        assertNotSame(b, scene.target, "a DENY'd target must not stay on the mob");
+        assertSame(a, scene.target);
+        serverTicks(goal, AggressiveGoal.RECONSIDER_EVERY_TICKS * 2);
+        assertFalse(scene.attacked.subList(hitsBefore, scene.attacked.size()).contains(b));
+        assertFalse(scene.chased.subList(chasesBefore, scene.chased.size()).contains(b));
+        assertTrue(scene.attacked.contains(a));
+    }
+
+    @Test
+    void everybodyDeniedLeavesNoStaleTarget() {
+        Player a = scene.player("A", 1);
+        Player b = scene.player("B", 1.3);
+        Map<Player, TargetVerdict> verdicts = new HashMap<>();
+        AggressiveGoal goal = goal(verdicts);
+        serverTick(goal);
+        assertSame(a, scene.target);
+        verdicts.put(a, TargetVerdict.DENY);
+        verdicts.put(b, TargetVerdict.DENY);
+        int hitsBefore = scene.attacked.size();
+        serverTicks(goal, AggressiveGoal.RECONSIDER_EVERY_TICKS);
+        assertNull(scene.target, "the goal stops and clears the refused target");
+        assertFalse(running);
+        assertEquals(hitsBefore, scene.attacked.size());
+    }
+
+    @Test
+    void deniedAAllowedBGoesToB() {
+        Player a = scene.player("A", 1);
+        Player b = scene.player("B", 3);
+        AggressiveGoal goal = goal(new HashMap<>(Map.of(a, TargetVerdict.DENY)));
+        serverTicks(goal, 3);
+        assertSame(b, scene.target);
+        assertFalse(scene.attacked.contains(a));
+    }
+
+    @Test
+    void withoutPolicyTheCurrentTargetIsKeptAsBefore() {
+        Player first = scene.player("first", 5);
+        AggressiveGoal goal = goal(32, TargetPolicies.ALLOW_ALL);
+        serverTick(goal);
+        Player closer = scene.player("closer", 1);
+        serverTicks(goal, AggressiveGoal.RECONSIDER_EVERY_TICKS * 2);
+        assertSame(first, scene.target, "no policy: no reconsider, old behaviour");
+        assertFalse(scene.attacked.contains(closer));
     }
 
     @Test

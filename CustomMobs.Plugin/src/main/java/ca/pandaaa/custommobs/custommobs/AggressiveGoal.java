@@ -25,6 +25,7 @@ import com.destroystokyo.paper.entity.ai.GoalType;
 import com.destroystokyo.paper.entity.ai.MobGoals;
 
 import ca.pandaaa.custommobs.api.MobTargetPolicy;
+import ca.pandaaa.custommobs.api.TargetVerdict;
 
 /**
  * Makes any mob (passive ones included) chase and hit a player.
@@ -42,7 +43,10 @@ public final class AggressiveGoal implements Goal<Mob> {
     static final double DEFAULT_FOLLOW_RANGE = 32;
     /** How long a vetoed player is left alone before the goal asks again (mob ticks lived: runs while the goal is inactive too). */
     static final int VETO_RETRY_TICKS = 20;
-    /** With a policy registered, how often a still-valid target is weighed against the others. */
+    /**
+     * With a policy registered, how often (mob ticks lived) every candidate is scored again. Only tick() moves this
+     * clock: shouldActivate/shouldStayActive must not consume it, Paper calls them before every tick().
+     */
     static final int RECONSIDER_EVERY_TICKS = 20;
 
     private final Mob mob;
@@ -50,7 +54,6 @@ public final class AggressiveGoal implements Goal<Mob> {
     private final Supplier<MobTargetPolicy> policy;
     private final Map<UUID, Integer> vetoedUntil = new HashMap<>();
     private int cooldown;
-    private int ticks;
     private int nextReconsider;
 
     AggressiveGoal(Mob mob, DoubleSupplier followRange, Supplier<MobTargetPolicy> policy) {
@@ -81,13 +84,21 @@ public final class AggressiveGoal implements Goal<Mob> {
 
     @Override
     public boolean shouldActivate() {
-        return findTarget() != null;
+        return findTarget(reconsiderDue()) != null; // pure: also what shouldStayActive asks
+    }
+
+    @Override
+    public void stop() {
+        dropRefusedTarget();
     }
 
     @Override
     public void tick() {
-        ticks++;
-        Player target = findTarget();
+        boolean reconsider = reconsiderDue();
+        if (reconsider)
+            nextReconsider = mob.getTicksLived() + RECONSIDER_EVERY_TICKS;
+        dropRefusedTarget();
+        Player target = findTarget(reconsider);
         if (target == null)
             return;
         if (mob.getTarget() != target && !TargetRequests.request(mob, target)) {
@@ -114,16 +125,30 @@ public final class AggressiveGoal implements Goal<Mob> {
         }
     }
 
-    private Player findTarget() {
+    /** No policy registered: never (old behaviour, a valid current target is kept without looking further). */
+    private boolean reconsiderDue() {
+        return policy.get() != TargetPolicies.ALLOW_ALL && mob.getTicksLived() >= nextReconsider;
+    }
+
+    /** A target the policy now denies, or another plugin refused, is not left on the mob as a stale target. */
+    private void dropRefusedTarget() {
+        if (mob.getTarget() instanceof Player current && !accepted(current, policy.get()))
+            mob.setTarget(null);
+    }
+
+    private boolean accepted(Player player, MobTargetPolicy p) {
+        if (isVetoed(player))
+            return false;
+        TargetVerdict verdict = p.evaluate(mob, player);
+        return verdict != null && verdict.allowed();
+    }
+
+    private Player findTarget(boolean reconsider) {
         double range = followRange.getAsDouble();
         MobTargetPolicy p = policy.get();
         LivingEntity current = mob.getTarget();
-        Player currentPlayer = current instanceof Player cp && isValidTarget(cp, range) ? cp : null;
-
-        // No policy registered: keep the old behaviour (a valid current target is kept without looking further).
-        boolean reconsider = p != TargetPolicies.ALLOW_ALL && ticks >= nextReconsider;
-        if (reconsider)
-            nextReconsider = ticks + RECONSIDER_EVERY_TICKS;
+        // A denied or vetoed current target does not count: the other candidates are looked at right away.
+        Player currentPlayer = current instanceof Player cp && isValidTarget(cp, range) && accepted(cp, p) ? cp : null;
 
         List<Player> candidates = new ArrayList<>();
         if (currentPlayer == null || reconsider) {
