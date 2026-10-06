@@ -418,7 +418,7 @@ public class Events implements Listener {
         if (!SpawnRules.replaceable(event.getSpawnReason()))
             return;
         Entity entity = event.getEntity();
-        if (isCustomMob(entity) || SpawnRules.fromForeignSpawner(entity.getPersistentDataContainer().getKeys()))
+        if (isCustomMob(entity))
             return;
         World world = event.getLocation().getWorld();
 
