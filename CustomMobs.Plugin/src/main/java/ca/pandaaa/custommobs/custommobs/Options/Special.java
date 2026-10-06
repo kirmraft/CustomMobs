@@ -238,7 +238,11 @@ public class Special extends CustomMobOption {
         customMob.setInvulnerable(invincible);
         customMob.setSilent(silent);
         customMob.setGravity(gravity);
-        customMob.setPersistent(persistent);
+        // A CustomMob is always saved with its chunk (Entity#setPersistent(false) would make it vanish on unload).
+        // "persistent", as documented, only stops natural despawning.
+        customMob.setPersistent(true);
+        if (customMob instanceof LivingEntity living)
+            living.setRemoveWhenFarAway(!persistent);
 
         if (aggressive) {
             customMob.getPersistentDataContainer().set(NamespacedKeys.KEY_AGGRESSIVE, PersistentDataType.BOOLEAN, true);
