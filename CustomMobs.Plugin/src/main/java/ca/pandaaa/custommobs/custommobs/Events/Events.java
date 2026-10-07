@@ -54,23 +54,43 @@ public class Events implements Listener {
             double randomValue = minDamage + (maxDamage - minDamage) * RANDOM.nextDouble();
             event.setDamage(randomValue);
         }
+    }
 
-        if (!(event.getEntity() instanceof Player))
+    /**
+     * On-hit effects (Infection...) only for a hit that really happened. MONITOR: a protection or combat plugin may
+     * cancel the hit after onDamage (HIGH/HIGHEST), and only here the outcome is final.
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onHitEffects(EntityDamageByEntityEvent event) {
+        triggerOnHitEffects(event.isCancelled(), event.getDamager(), event.getEntity(), this::onHitEffectsOf);
+    }
+
+    /** The effects of the CustomMob {@code entity} is, null when it is not one. */
+    private Collection<CustomMobCustomEffect> onHitEffectsOf(Entity entity) {
+        if (!isCustomMob(entity))
+            return null;
+        return CustomMobs.getPlugin().getCustomMobsManager().getCustomMob(
+                entity.getPersistentDataContainer().get(NamespacedKeys.KEY_NAME, PersistentDataType.STRING))
+                .getCustomMobCustomEffects();
+    }
+
+    /** Runs the enabled ON_DAMAGE_ON_PLAYER effects of the CustomMob that hit (or shot) a player. */
+    static void triggerOnHitEffects(boolean cancelled, Entity damager, Entity victim,
+                                    java.util.function.Function<Entity, Collection<CustomMobCustomEffect>> effectsOf) {
+        if (cancelled || !(victim instanceof Player player))
             return;
-
-        if (isCustomMob(entity)) {
-            Entity source = entity;
-            CustomMob customMob = CustomMobs.getPlugin().getCustomMobsManager().getCustomMob(
-                    entity.getPersistentDataContainer().get(NamespacedKeys.KEY_NAME, PersistentDataType.STRING));
-            customMob.getCustomMobCustomEffects().stream()
-                    .filter(effect -> CustomEffectType.ON_DAMAGE_ON_PLAYER.equals(effect.getCustomEffectType()))
-                    .filter(CustomMobCustomEffect::isEnabled)
-                    .forEach(effect -> {
-                        // Source = the CustomMob that hit (or shot), target = the player hit.
-                        if (effect.triggerOnDamage(source, (Player) event.getEntity()) != null)
-                            effect.trySendCustomEffectMessage((Player) event.getEntity());
-                    });
-        }
+        Entity source = attacker(damager);
+        Collection<CustomMobCustomEffect> effects = effectsOf.apply(source);
+        if (effects == null)
+            return;
+        effects.stream()
+                .filter(effect -> CustomEffectType.ON_DAMAGE_ON_PLAYER.equals(effect.getCustomEffectType()))
+                .filter(CustomMobCustomEffect::isEnabled)
+                .forEach(effect -> {
+                    // Source = the CustomMob that hit (or shot), target = the player hit.
+                    if (effect.triggerOnDamage(source, player) != null)
+                        effect.trySendCustomEffectMessage(player);
+                });
     }
 
     /** Who dealt the damage: the shooter of a projectile when it is a living entity, else the damager itself. */
