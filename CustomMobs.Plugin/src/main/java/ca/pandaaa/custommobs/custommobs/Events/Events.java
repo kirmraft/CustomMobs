@@ -40,12 +40,7 @@ public class Events implements Listener {
 
     @EventHandler
     public void onDamage(EntityDamageByEntityEvent event) {
-        Entity entity = event.getDamager();
-
-        if (entity instanceof Projectile projectile) {
-            if (projectile.getShooter() instanceof LivingEntity)
-                entity = (LivingEntity) projectile.getShooter();
-        }
+        Entity entity = attacker(event.getDamager());
 
         if (entity == null)
             return;
@@ -76,6 +71,13 @@ public class Events implements Listener {
                             effect.trySendCustomEffectMessage((Player) event.getEntity());
                     });
         }
+    }
+
+    /** Who dealt the damage: the shooter of a projectile when it is a living entity, else the damager itself. */
+    static Entity attacker(Entity damager) {
+        if (damager instanceof Projectile projectile && projectile.getShooter() instanceof LivingEntity shooter)
+            return shooter;
+        return damager;
     }
 
     /**

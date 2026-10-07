@@ -64,11 +64,25 @@ public class Infection extends CustomMobCustomEffect {
 
     @Override
     protected List<Player> applyOnDamage(Player victim) {
-        if(!((LivingEntity) victim).hasPotionEffect(infectionEffect)) {
-            ((LivingEntity) victim).addPotionEffect(new PotionEffect(infectionEffect, infectionTime * 20, infectionAmplifier));
+        if(applies(((LivingEntity) victim).hasPotionEffect(infectionEffect))) {
+            ((LivingEntity) victim).addPotionEffect(new PotionEffect(infectionEffect,
+                    durationTicks(infectionEffect.isInstant(), infectionTime), infectionAmplifier));
             return new ArrayList<>();
         }
         return null;
+    }
+
+    /** One activation per damaging hit, only when the victim does not have the effect yet: no refresh, no stacking. */
+    static boolean applies(boolean victimHasEffect) {
+        return !victimHasEffect;
+    }
+
+    /**
+     * An instant effect (instant_damage, instant_health) acts on every tick its potion effect lasts, so it gets one
+     * tick: one hit per activation, whatever the configured time. Duration effects keep their seconds.
+     */
+    static int durationTicks(boolean instant, int seconds) {
+        return instant ? 1 : seconds * 20;
     }
 
     public ItemStack modifyOption(Player clicker, CustomMob customMob, String option, ClickType clickType) {
