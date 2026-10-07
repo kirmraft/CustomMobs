@@ -53,9 +53,7 @@ public class Miner extends CustomMobCustomEffect {
         if (mob.getTarget() != target && !ca.pandaaa.custommobs.custommobs.TargetRequests.request(mob, target))
             return null;
 
-        if (!hasClearPath(mob, target)) {
-            digTowardsTarget(mob, target);
-        }
+        digTowardsTarget(mob, target);
         return null; // Miner does not have a message.
     }
 
@@ -119,51 +117,51 @@ public class Miner extends CustomMobCustomEffect {
                 player -> policy.evaluate(mob, player), player -> false, player -> true, false);
     }
 
-    private boolean hasClearPath(Mob mob, Player target) {
-        Location eyeStart = mob.getEyeLocation();
-        Location feetStart = mob.getLocation().add(0, 0.1, 0);
-
-        Vector direction = target.getEyeLocation().toVector().subtract(eyeStart.toVector());
-        double distance = direction.length();
-        if (distance == 0) return true;
-
-        direction.normalize();
-
-        for (double i = 0; i < distance; i += 0.5) {
-            Block eyeBlock = eyeStart.clone().add(direction.clone().multiply(i)).getBlock();
-            Block feetBlock = feetStart.clone().add(direction.clone().multiply(i)).getBlock();
-
-            if (!eyeBlock.isPassable() || !feetBlock.isPassable()) {
-                return false;
-            }
+    /**
+     * First block closing the 2-high corridor (feet and head) on the line from the mob's feet to the target's feet,
+     * null when the corridor is open: the mob can then walk to the target, a hole at head height is not enough.
+     */
+    static Block firstObstruction(Location from, Location to) {
+        Vector step = to.toVector().subtract(from.toVector());
+        double distance = step.length();
+        if (distance == 0) return null;
+        step.normalize().multiply(0.25);
+        // +0.5: the feet cell of a mob standing on a slab or farmland is the one above, never its own floor.
+        Location at = from.clone().add(0, 0.5, 0);
+        for (double travelled = 0; travelled < distance; travelled += 0.25, at.add(step)) {
+            Block head = at.clone().add(0, 1, 0).getBlock();
+            if (!head.isPassable()) return head;
+            Block feet = at.getBlock();
+            if (!feet.isPassable()) return feet;
         }
-        return true;
+        return null;
     }
 
+    /** Blocks farther than this from the mob's feet are not dug: the mob walks up to them first. */
+    private static final double DIG_REACH = 3.0;
+
+    /** Replaced in tests: wall-clock time and the mob_griefing/WorldGuard check need a server. */
+    static java.util.function.LongSupplier clock = System::currentTimeMillis;
+    static java.util.function.Predicate<Block> mayBreak = WorldGuard::canBreakBlock;
+
+    // ponytail: one cooldown per CustomMob type (shared by its mobs), per-entity if several Miners must dig at once
     private Long cooldown = 0L;
     private void digTowardsTarget(org.bukkit.entity.Mob mob, Player target) {
-        long now = System.currentTimeMillis();
+        long now = clock.getAsLong();
         if (now < cooldown) return;
-        cooldown = now + 750L;
 
-        Vector direction = target.getEyeLocation().toVector()
-                .subtract(mob.getEyeLocation().toVector()).normalize();
-
-        Block headBlock = mob.getEyeLocation().clone().add(direction).getBlock();
-        Block feetBlock = mob.getLocation().clone().add(direction).getBlock();
-
-        if (isBlockBreakable(headBlock)) {
-            headBlock.breakNaturally();
+        Block block = firstObstruction(mob.getLocation(), target.getLocation());
+        if (block == null || block.getLocation().add(0.5, 0.5, 0.5).distance(mob.getLocation()) > DIG_REACH)
             return;
-        }
-        if (isBlockBreakable(feetBlock)) {
-            feetBlock.breakNaturally();
-        }
+        cooldown = now + 750L;
+        // Unbreakable (bedrock, mob_griefing off, WorldGuard): stop here, never dig around it.
+        if (isBlockBreakable(block))
+            block.breakNaturally();
     }
 
     private boolean isBlockBreakable(Block block) {
-        if (block == null || block.getType().isAir()) return false;
-        if (!WorldGuard.canBreakBlock(block)) return false;
+        if (block == null || block.isEmpty()) return false; // = getType().isAir() (CraftBlock), no registry
+        if (!mayBreak.test(block)) return false;
 
         return switch (block.getType()) {
             case BEDROCK, BARRIER, END_PORTAL_FRAME -> false;
