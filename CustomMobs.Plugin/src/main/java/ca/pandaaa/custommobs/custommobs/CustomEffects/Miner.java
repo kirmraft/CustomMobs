@@ -139,6 +139,8 @@ public class Miner extends CustomMobCustomEffect {
 
     /** Blocks farther than this from the mob's feet are not dug: the mob walks up to them first. */
     private static final double DIG_REACH = 3.0;
+    /** One block every 2 s: the mob opens a passage towards the player instead of tearing a cave wall down. */
+    static final long DIG_INTERVAL_MS = 2000L;
 
     /** Replaced in tests: wall-clock time and the mob_griefing/WorldGuard check need a server. */
     static java.util.function.LongSupplier clock = System::currentTimeMillis;
@@ -164,7 +166,7 @@ public class Miner extends CustomMobCustomEffect {
         Block block = firstObstruction(mob.getLocation(), target.getLocation());
         if (block == null || block.getLocation().add(0.5, 0.5, 0.5).distance(mob.getLocation()) > DIG_REACH)
             return;
-        cooldown = now + 750L;
+        cooldown = now + DIG_INTERVAL_MS;
         // Unbreakable (bedrock, container, mob_griefing off, WorldGuard, another plugin): stop here, never dig around it.
         if (isBlockBreakable(mob, block))
             block.breakNaturally();

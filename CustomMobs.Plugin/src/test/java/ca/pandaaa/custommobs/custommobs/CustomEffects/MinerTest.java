@@ -159,11 +159,11 @@ class MinerTest {
         return new Miner(new CustomMobConfiguration(new YamlConfiguration(), new File("t.yml")));
     }
 
-    /** Triggers the effect {@code times} times, letting the 750 ms dig cooldown elapse between them. */
+    /** Triggers the effect {@code times} times, letting the dig cooldown elapse between them. */
     private void trigger(Miner miner, int times) {
         for (int i = 0; i < times; i++) {
             miner.triggerCustomEffect(mob);
-            now += 750;
+            now += Miner.DIG_INTERVAL_MS;
         }
     }
 
@@ -224,7 +224,7 @@ class MinerTest {
         Miner miner = miner();
         miner.triggerCustomEffect(mob);
         miner.triggerCustomEffect(mob);
-        now += 749;
+        now += Miner.DIG_INTERVAL_MS - 1;
         miner.triggerCustomEffect(mob);
         assertEquals(1, broken.size());
     }
