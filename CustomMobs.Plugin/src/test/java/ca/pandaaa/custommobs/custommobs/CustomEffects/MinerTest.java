@@ -40,6 +40,9 @@ class MinerTest {
     private final java.util.function.Consumer<Event> originalTargets = TargetRequests.dispatcher;
     private final java.util.function.LongSupplier originalClock = Miner.clock;
     private final java.util.function.Predicate<Block> originalMayBreak = Miner.mayBreak;
+    private final java.util.function.Predicate<Block> originalHoldsData = Miner.holdsData;
+    private final java.util.function.BiPredicate<org.bukkit.entity.Mob, Block> originalOthersAllow = Miner.othersAllow;
+    private final List<String> asked = new ArrayList<>();
     private final List<Player> nearby = new ArrayList<>();
     private final Set<Player> vetoed = new HashSet<>();
     private final Map<String, Material> solid = new HashMap<>();
@@ -75,6 +78,11 @@ class MinerTest {
         };
         Miner.clock = () -> now;
         Miner.mayBreak = block -> true;
+        Miner.holdsData = block -> false;
+        Miner.othersAllow = (m, block) -> {
+            asked.add(block.toString());
+            return m == mob;
+        };
     }
 
     @AfterEach
@@ -83,6 +91,8 @@ class MinerTest {
         TargetRequests.dispatcher = originalTargets;
         Miner.clock = originalClock;
         Miner.mayBreak = originalMayBreak;
+        Miner.holdsData = originalHoldsData;
+        Miner.othersAllow = originalOthersAllow;
         TargetPolicies.set(null);
     }
 
@@ -252,6 +262,34 @@ class MinerTest {
         Miner.mayBreak = block -> false; // mob_griefing off or WorldGuard region
         trigger(miner(), 5);
         assertTrue(broken.isEmpty());
+    }
+
+    @Test
+    void blockHoldingDataIsNeverDugSoAGraveChestKeepsItsItems() {
+        player("p", 4.5);
+        wall(Material.CHEST, 1);
+        Miner.holdsData = block -> block.getType() == Material.CHEST; // chest, barrel, grave, sign, spawner...
+        trigger(miner(), 5);
+        assertTrue(broken.isEmpty());
+        assertTrue(asked.isEmpty(), "a container is refused before other plugins are even asked");
+    }
+
+    @Test
+    void anotherPluginRefusingTheChangeStopsTheDig() {
+        player("p", 4.5);
+        wall(Material.STONE, 1);
+        Miner.othersAllow = (m, block) -> false; // Towny claim, BlockLocker, a grave plugin
+        trigger(miner(), 5);
+        assertTrue(broken.isEmpty());
+    }
+
+    @Test
+    void otherPluginsAreAskedWithTheDiggingMobBeforeEachBreak() {
+        player("p", 4.5);
+        wall(Material.STONE, 1);
+        trigger(miner(), 5);
+        assertEquals(Set.of(key(1, 64, 0), key(1, 65, 0)), new HashSet<>(broken));
+        assertEquals(broken, asked, "every broken block was approved first, for this mob");
     }
 
     @Test

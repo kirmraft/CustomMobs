@@ -143,6 +143,17 @@ public class Miner extends CustomMobCustomEffect {
     /** Replaced in tests: wall-clock time and the mob_griefing/WorldGuard check need a server. */
     static java.util.function.LongSupplier clock = System::currentTimeMillis;
     static java.util.function.Predicate<Block> mayBreak = WorldGuard::canBreakBlock;
+    /** Replaced in tests: a block holding data (chest, barrel, shulker, grave, sign, spawner) is never dug, its
+     * contents would be lost. Reading the state needs a server. */
+    static java.util.function.Predicate<Block> holdsData = block -> block.getState(false) instanceof org.bukkit.block.TileState;
+    /** Replaced in tests: the dig is offered to other plugins as the vanilla "mob changes a block" event, so Towny
+     * claims, lock and grave plugins can refuse it and CoreProtect logs it. */
+    static java.util.function.BiPredicate<org.bukkit.entity.Mob, Block> othersAllow = (mob, block) -> {
+        org.bukkit.event.entity.EntityChangeBlockEvent event =
+                new org.bukkit.event.entity.EntityChangeBlockEvent(mob, block, Material.AIR.createBlockData());
+        org.bukkit.Bukkit.getPluginManager().callEvent(event);
+        return !event.isCancelled();
+    };
 
     // ponytail: one cooldown per CustomMob type (shared by its mobs), per-entity if several Miners must dig at once
     private Long cooldown = 0L;
@@ -154,19 +165,21 @@ public class Miner extends CustomMobCustomEffect {
         if (block == null || block.getLocation().add(0.5, 0.5, 0.5).distance(mob.getLocation()) > DIG_REACH)
             return;
         cooldown = now + 750L;
-        // Unbreakable (bedrock, mob_griefing off, WorldGuard): stop here, never dig around it.
-        if (isBlockBreakable(block))
+        // Unbreakable (bedrock, container, mob_griefing off, WorldGuard, another plugin): stop here, never dig around it.
+        if (isBlockBreakable(mob, block))
             block.breakNaturally();
     }
 
-    private boolean isBlockBreakable(Block block) {
+    private boolean isBlockBreakable(org.bukkit.entity.Mob mob, Block block) {
         if (block == null || block.isEmpty()) return false; // = getType().isAir() (CraftBlock), no registry
-        if (!mayBreak.test(block)) return false;
-
-        return switch (block.getType()) {
-            case BEDROCK, BARRIER, END_PORTAL_FRAME -> false;
-            default -> true;
-        };
+        switch (block.getType()) {
+            case BEDROCK, BARRIER, END_PORTAL_FRAME -> {
+                return false;
+            }
+            default -> { }
+        }
+        // Cheapest checks first: the event to other plugins is fired only for a block the mob could really break.
+        return !holdsData.test(block) && mayBreak.test(block) && othersAllow.test(mob, block);
     }
 
     public int getRadius() {

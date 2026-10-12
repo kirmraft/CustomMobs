@@ -87,20 +87,34 @@ public class CustomMobConfiguration {
         return customMob;
     }
 
+    /**
+     * Option and effect classes per package, scanned once: ClassPath.from walks the whole class loader and ran twice
+     * per mob, freezing the main thread ~50 s on a 331-mob reload. These classes never change while the plugin runs.
+     */
+    private static final java.util.Map<String, List<Class<?>>> CLASSES = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private List<Class<?>> classesIn(String pkg) throws IOException, ClassNotFoundException {
+        List<Class<?>> cached = CLASSES.get(pkg);
+        if (cached != null) return cached;
+        List<Class<?>> classes = new ArrayList<>();
+        for (ClassPath.ClassInfo info : ClassPath.from(this.getClass().getClassLoader()).getTopLevelClassesRecursive(pkg))
+            classes.add(Class.forName(info.getName(), true, this.getClass().getClassLoader()));
+        CLASSES.put(pkg, List.copyOf(classes));
+        return CLASSES.get(pkg);
+    }
+
     public void setCustomMobOptions(CustomMob customMob, EntityType type) {
         try {
-            ClassPath path = ClassPath.from(this.getClass().getClassLoader());
-            List<ClassPath.ClassInfo> classInfos = new ArrayList<>(path.getTopLevelClassesRecursive("ca.pandaaa.custommobs.custommobs.Options"));
+            List<Class<?>> classes = new ArrayList<>(classesIn("ca.pandaaa.custommobs.custommobs.Options"));
 
             // Sort so that Special comes first
-            classInfos.sort((info1, info2) -> {
-                if (info1.getName().endsWith("Special")) return -1;
-                if (info2.getName().endsWith("Special")) return 1;
+            classes.sort((class1, class2) -> {
+                if (class1.getName().endsWith("Special")) return -1;
+                if (class2.getName().endsWith("Special")) return 1;
                 return 0;
             });
 
-            for (ClassPath.ClassInfo info : classInfos) {
-                Class clazz = Class.forName(info.getName(), true, this.getClass().getClassLoader());
+            for (Class clazz : classes) {
                 if (Modifier.isAbstract(clazz.getModifiers())) // Skip abstract class
                     continue;
                 if((boolean) clazz.getMethod("isApplicable", EntityType.class).invoke(null, type)) {
@@ -119,11 +133,7 @@ public class CustomMobConfiguration {
 
     public void setCustomMobCustomEffects(CustomMob customMob) {
         try {
-            ClassPath path = ClassPath.from(this.getClass().getClassLoader());
-            List<ClassPath.ClassInfo> classInfos = new ArrayList<>(path.getTopLevelClassesRecursive("ca.pandaaa.custommobs.custommobs.CustomEffects"));
-
-            for (ClassPath.ClassInfo info : classInfos) {
-                Class clazz = Class.forName(info.getName(), true, this.getClass().getClassLoader());
+            for (Class clazz : classesIn("ca.pandaaa.custommobs.custommobs.CustomEffects")) {
                 if (Modifier.isAbstract(clazz.getModifiers()) || clazz.isEnum()) // Skip abstract class and enum
                     continue;
                 customMob.addCustomMobCustomEffect((CustomMobCustomEffect) clazz.getDeclaredConstructor(CustomMobConfiguration.class).newInstance(this));
@@ -140,9 +150,7 @@ public class CustomMobConfiguration {
 
     public void resetType(EntityType type) {
         try {
-            ClassPath path = ClassPath.from(this.getClass().getClassLoader());
-            for (ClassPath.ClassInfo info : path.getTopLevelClassesRecursive("ca.pandaaa.custommobs.custommobs.Options")) {
-                Class clazz = Class.forName(info.getName(), true, this.getClass().getClassLoader());
+            for (Class clazz : classesIn("ca.pandaaa.custommobs.custommobs.Options")) {
                 if (Modifier.isAbstract(clazz.getModifiers()) || clazz.getSimpleName().contains("Special")) // Skip abstract class and Default (not applicable)
                     continue;
                 if((boolean) clazz.getMethod("isApplicable", EntityType.class).invoke(null, type)) {
