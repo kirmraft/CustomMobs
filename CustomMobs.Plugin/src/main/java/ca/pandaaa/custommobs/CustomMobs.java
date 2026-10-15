@@ -177,6 +177,8 @@ public class CustomMobs extends JavaPlugin {
             return;
 
         getServer().getPluginManager().registerEvents(new Events(), this);
+        getServer().getPluginManager().registerEvents(new ca.pandaaa.custommobs.custommobs.Telemetria(), this);
+        ca.pandaaa.custommobs.custommobs.Telemetria.avviaCensimento(this);
         // A MobTargetPolicy from another plugin (ServicesManager), cached and kept up to date.
         getServer().getPluginManager().registerEvents(new ca.pandaaa.custommobs.custommobs.TargetPolicies(), this);
         ca.pandaaa.custommobs.custommobs.TargetPolicies.refresh();

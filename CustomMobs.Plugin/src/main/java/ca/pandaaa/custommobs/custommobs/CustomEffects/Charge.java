@@ -62,6 +62,7 @@ public class Charge extends CustomMobCustomEffect {
         for (Entity player : playersAround) {
             if (triggerCustomEffectCancelled(entity, (Player) player, this)) continue;
             player.setVelocity(player.getLocation().getDirection().multiply(knockbackStrength * -1).setY(knockbackStrength));
+            ca.pandaaa.custommobs.custommobs.Telemetria.contatto((Player) player, entity);
             affectedPlayers.add((Player) player);
         }
         if (cooldown > 0 && !affectedPlayers.isEmpty()) {

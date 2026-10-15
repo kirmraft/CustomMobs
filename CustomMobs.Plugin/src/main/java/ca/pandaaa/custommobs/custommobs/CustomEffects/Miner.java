@@ -168,7 +168,9 @@ public class Miner extends CustomMobCustomEffect {
             return;
         cooldown = now + DIG_INTERVAL_MS;
         // Unbreakable (bedrock, container, mob_griefing off, WorldGuard, another plugin): stop here, never dig around it.
-        if (isBlockBreakable(mob, block))
+        boolean rotto = isBlockBreakable(mob, block);
+        ca.pandaaa.custommobs.custommobs.Telemetria.scavo(mob, block, rotto);
+        if (rotto)
             block.breakNaturally();
     }
 
