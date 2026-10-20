@@ -1,5 +1,7 @@
 package ca.pandaaa.custommobs.custommobs.CustomEffects;
 
+import ca.pandaaa.custommobs.custommobs.AttesaPerMob;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -39,14 +41,22 @@ public class MobSpawner extends CustomMobCustomEffect {
     private static final String SPAWNED_AMOUNT = "custom-effects.mobspawner.spawned-amount";
     private int spawnedAmount;
 
+    /** Seconds a CustomMob waits after summoning before it can summon again; 0 keeps the old behaviour. */
+    private static final String SUMMON_COOLDOWN = "custom-effects.mobspawner.cooldown";
+    private final int cooldown;
+    private final AttesaPerMob attesa = new AttesaPerMob();
+
     public MobSpawner(CustomMobConfiguration mobConfiguration) {
         super(mobConfiguration, CustomEffectType.COOLDOWN);
         spawnedCustomMob = getCustomEffectOption(CUSTOMMOB, CustomMob.class);
         spawnedAmount = getCustomEffectOption(SPAWNED_AMOUNT, Integer.class, 3);
+        cooldown = Math.max(0, getCustomEffectOption(SUMMON_COOLDOWN, Integer.class, 0));
     }
 
     public List<Player> triggerCustomEffect(Entity entity) {
+        if(!attesa.pronto(entity.getUniqueId())) return null;
         if(triggerCustomEffectCancelled(entity, null, this)) return null;
+        attesa.avvia(entity.getUniqueId(), cooldown);
         for(int i = 0; i < spawnedAmount; i++) {
             Random random = new Random();
             double angle = 2 * Math.PI * random.nextDouble();

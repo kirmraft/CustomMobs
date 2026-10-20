@@ -38,6 +38,28 @@ import ca.pandaaa.custommobs.custommobs.Options.Special;
 public class Events implements Listener {
     private static final Random RANDOM = new Random();
 
+    /**
+     * A vanilla witch readies a healing potion whenever it is below max health. With the high health of a CustomMob
+     * witch that is almost always, so it spent the fight drinking. CustomMob witches heal only below half health.
+     */
+    @EventHandler(ignoreCancelled = true)
+    public void onWitchPotion(com.destroystokyo.paper.event.entity.WitchReadyPotionEvent event) {
+        Witch witch = event.getEntity();
+        if (!witch.getPersistentDataContainer().has(NamespacedKeys.KEY_NAME, PersistentDataType.STRING))
+            return;
+        boolean cura = event.getPotion() != null && event.getPotion().getItemMeta() instanceof org.bukkit.inventory.meta.PotionMeta meta
+                && meta.getBasePotionType() != null && meta.getBasePotionType().getPotionEffects().stream()
+                        .anyMatch(e -> e.getType().equals(org.bukkit.potion.PotionEffectType.INSTANT_HEALTH)
+                                || e.getType().equals(org.bukkit.potion.PotionEffectType.REGENERATION));
+        org.bukkit.attribute.AttributeInstance max = witch.getAttribute(Registry.ATTRIBUTE.get(NamespacedKey.minecraft("max_health")));
+        if (troppoPresto(cura, witch.getHealth(), max == null ? witch.getHealth() : max.getValue()))
+            event.setCancelled(true);
+    }
+
+    static boolean troppoPresto(boolean cura, double vita, double vitaMax) {
+        return cura && vita > vitaMax / 2;
+    }
+
     @EventHandler
     public void onDamage(EntityDamageByEntityEvent event) {
         Entity entity = attacker(event.getDamager());

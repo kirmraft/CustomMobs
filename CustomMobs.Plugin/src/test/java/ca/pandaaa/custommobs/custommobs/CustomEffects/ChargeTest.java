@@ -1,5 +1,7 @@
 package ca.pandaaa.custommobs.custommobs.CustomEffects;
 
+import ca.pandaaa.custommobs.custommobs.AttesaPerMob;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.File;
@@ -25,7 +27,7 @@ import ca.pandaaa.custommobs.configurations.CustomMobConfiguration;
  */
 class ChargeTest {
     private final java.util.function.Consumer<Event> original = CustomMobCustomEffect.dispatcher;
-    private final java.util.function.LongSupplier originalClock = Charge.clock;
+    private final java.util.function.LongSupplier originalClock = AttesaPerMob.clock;
     private long now = 1_000_000;
     private int launches;
     private final Player player = (Player) Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[] {Player.class},
@@ -42,13 +44,13 @@ class ChargeTest {
 
     ChargeTest() {
         CustomMobCustomEffect.dispatcher = e -> { };
-        Charge.clock = () -> now;
+        AttesaPerMob.clock = () -> now;
     }
 
     @AfterEach
     void restore() {
         CustomMobCustomEffect.dispatcher = original;
-        Charge.clock = originalClock;
+        AttesaPerMob.clock = originalClock;
     }
 
     private Spider mob() {

@@ -1,5 +1,7 @@
 package ca.pandaaa.custommobs.custommobs.CustomEffects;
 
+import ca.pandaaa.custommobs.custommobs.AttesaPerMob;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -50,11 +52,30 @@ public class Infection extends CustomMobCustomEffect {
     private static final String INFECTION_EFFECT = "custom-effects.infection.effect";
     private PotionEffectType infectionEffect;
 
+    /**
+     * Seconds a CustomMob waits after infecting before it can infect again. Without it a mob that hits often keeps the
+     * effect on forever (wither, weakness). 0 keeps the old behaviour.
+     */
+    private static final String INFECTION_COOLDOWN = "custom-effects.infection.cooldown";
+    private final int cooldown;
+    private final AttesaPerMob attesa = new AttesaPerMob();
+
     public Infection(CustomMobConfiguration mobConfiguration) {
         super(mobConfiguration, CustomEffectType.ON_DAMAGE_ON_PLAYER);
         this.infectionTime = getCustomEffectOption(INFECTION_TIME, Integer.class, 5);
         this.infectionAmplifier = getCustomEffectOption(INFECTION_AMPLIFIER, Integer.class, 1);
         this.infectionEffect = getCustomEffectOption(INFECTION_EFFECT, PotionEffectType.class, PotionEffectType.BLINDNESS);
+        this.cooldown = Math.max(0, getCustomEffectOption(INFECTION_COOLDOWN, Integer.class, 0));
+    }
+
+    @Override
+    public List<Player> triggerOnDamage(Entity source, Player victim) {
+        if (!attesa.pronto(source.getUniqueId()))
+            return null;
+        List<Player> result = super.triggerOnDamage(source, victim);
+        if (result != null)
+            attesa.avvia(source.getUniqueId(), cooldown);
+        return result;
     }
 
     /** Legacy entry point without the mob: the victim stands in as source. Use {@link #triggerOnDamage}. */

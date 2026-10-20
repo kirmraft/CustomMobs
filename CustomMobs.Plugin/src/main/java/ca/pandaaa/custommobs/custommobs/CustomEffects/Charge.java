@@ -1,5 +1,7 @@
 package ca.pandaaa.custommobs.custommobs.CustomEffects;
 
+import ca.pandaaa.custommobs.custommobs.AttesaPerMob;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -38,11 +40,7 @@ public class Charge extends CustomMobCustomEffect {
      */
     private static final String COOLDOWN = "custom-effects.charge.cooldown";
     private final int cooldown;
-
-    /** Replaced in tests: wall-clock time. */
-    static java.util.function.LongSupplier clock = System::currentTimeMillis;
-    // One Charge per CustomMob type, shared by its mobs: the wait is per mob.
-    private final java.util.Map<java.util.UUID, Long> nextCharge = new java.util.HashMap<>();
+    private final AttesaPerMob attesa = new AttesaPerMob();
 
     public Charge(CustomMobConfiguration mobConfiguration) {
         super(mobConfiguration, CustomEffectType.ON_IMPACT);
@@ -51,9 +49,7 @@ public class Charge extends CustomMobCustomEffect {
     }
 
     public List<Player> triggerCustomEffect(Entity entity) {
-        long now = clock.getAsLong();
-        Long next = nextCharge.get(entity.getUniqueId());
-        if (next != null && now < next)
+        if (!attesa.pronto(entity.getUniqueId()))
             return new ArrayList<>();
 
         List<Entity> playersAround = entity.getNearbyEntities(1D, 1D, 1D).stream().filter(e -> e instanceof Player).toList();
@@ -65,11 +61,8 @@ public class Charge extends CustomMobCustomEffect {
             ca.pandaaa.custommobs.custommobs.Telemetria.contatto((Player) player, entity);
             affectedPlayers.add((Player) player);
         }
-        if (cooldown > 0 && !affectedPlayers.isEmpty()) {
-            // Expired waits are dropped here, so dead mobs do not stay in the map.
-            nextCharge.values().removeIf(time -> time <= now);
-            nextCharge.put(entity.getUniqueId(), now + cooldown * 1000L);
-        }
+        if (!affectedPlayers.isEmpty())
+            attesa.avvia(entity.getUniqueId(), cooldown);
         return affectedPlayers;
     }
 
